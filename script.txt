@@ -42,7 +42,6 @@ float niFY    = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
 float epsFY1  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
 float niFY1   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")[1]
 
-// Debt data for leverage warning
 float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
 
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
@@ -188,7 +187,6 @@ bool warnOvervalued = not na(currentPFCF) and currentPFCF > 80
 
 bool warnGrowthStall = not isRestructured and revValid and not na(rev1YCAGR) and revCAGR > 10 and rev1YCAGR < 5 and (revCAGR - rev1YCAGR) > 10
 
-// Warning 9: Excessive Debt — Debt/FCF ratio > 10 years to repay
 float debtToFCF = not na(totalDebt) and not na(fcfY0_y) and fcfY0_y > 0 ? totalDebt / fcfY0_y : na
 bool warnDebtHeavy = not na(debtToFCF) and debtToFCF > 10
 
@@ -303,97 +301,148 @@ string fundGrade = fundScore >= 5 ? "A+" : fundScore >= 4 ? "A" : fundScore >= 3
 color fundGradeColor = fundScore >= 4 ? color.green : fundScore >= 3 ? color.blue : fundScore >= 2 ? color.orange : color.red
 
 // ============================================================================
-// SECTOR ROTATION — Phase Detection with NEXT PHASE
+// SECTOR ROTATION — Dual Timeframe Detection
+// LONG (60d) = established phase | SHORT (20d) = emerging phase
 // ============================================================================
-float techPerf    = not na(techClose) and not na(techClose[rotationLookback]) and techClose[rotationLookback] > 0 ? (techClose / techClose[rotationLookback] - 1) * 100 : na
-float finPerf     = not na(finClose) and not na(finClose[rotationLookback]) and finClose[rotationLookback] > 0 ? (finClose / finClose[rotationLookback] - 1) * 100 : na
-float healthPerf  = not na(healthClose) and not na(healthClose[rotationLookback]) and healthClose[rotationLookback] > 0 ? (healthClose / healthClose[rotationLookback] - 1) * 100 : na
-float energyPerf  = not na(energyClose) and not na(energyClose[rotationLookback]) and energyClose[rotationLookback] > 0 ? (energyClose / energyClose[rotationLookback] - 1) * 100 : na
-float staplesPerf = not na(staplesClose) and not na(staplesClose[rotationLookback]) and staplesClose[rotationLookback] > 0 ? (staplesClose / staplesClose[rotationLookback] - 1) * 100 : na
-float utilPerf    = not na(utilClose) and not na(utilClose[rotationLookback]) and utilClose[rotationLookback] > 0 ? (utilClose / utilClose[rotationLookback] - 1) * 100 : na
 
-bool rotDataValid = not na(techPerf) and not na(finPerf) and not na(healthPerf) and not na(energyPerf) and not na(staplesPerf) and not na(utilPerf)
+// --- Phase scoring function ---
+scorePhases(float techP, float finP, float healthP, float energyP, float staplesP, float utilP) =>
+    float early = 0.0
+    float mid = 0.0
+    float late = 0.0
+    float defense = 0.0
+    if finP > techP
+        early += 1
+    if finP > energyP
+        early += 1
+    if finP > staplesP
+        early += 1
+    if techP > finP
+        mid += 1
+    if techP > energyP
+        mid += 1
+    if techP > staplesP
+        mid += 1
+    if techP > utilP
+        mid += 1
+    if energyP > techP
+        late += 1
+    if energyP > finP
+        late += 1
+    if energyP > staplesP
+        late += 1
+    if staplesP > techP
+        defense += 1
+    if utilP > techP
+        defense += 1
+    if healthP > techP
+        defense += 1
+    if staplesP > energyP
+        defense += 1
+    [early, mid, late, defense]
 
-float earlyScore = 0.0
-float midScore = 0.0
-float lateScore = 0.0
-float defenseScore = 0.0
+// --- LONG lookback performance ---
+float techPerfL    = not na(techClose) and not na(techClose[rotationLookback]) and techClose[rotationLookback] > 0 ? (techClose / techClose[rotationLookback] - 1) * 100 : na
+float finPerfL     = not na(finClose) and not na(finClose[rotationLookback]) and finClose[rotationLookback] > 0 ? (finClose / finClose[rotationLookback] - 1) * 100 : na
+float healthPerfL  = not na(healthClose) and not na(healthClose[rotationLookback]) and healthClose[rotationLookback] > 0 ? (healthClose / healthClose[rotationLookback] - 1) * 100 : na
+float energyPerfL  = not na(energyClose) and not na(energyClose[rotationLookback]) and energyClose[rotationLookback] > 0 ? (energyClose / energyClose[rotationLookback] - 1) * 100 : na
+float staplesPerfL = not na(staplesClose) and not na(staplesClose[rotationLookback]) and staplesClose[rotationLookback] > 0 ? (staplesClose / staplesClose[rotationLookback] - 1) * 100 : na
+float utilPerfL    = not na(utilClose) and not na(utilClose[rotationLookback]) and utilClose[rotationLookback] > 0 ? (utilClose / utilClose[rotationLookback] - 1) * 100 : na
 
+bool rotDataValid = not na(techPerfL) and not na(finPerfL) and not na(healthPerfL) and not na(energyPerfL) and not na(staplesPerfL) and not na(utilPerfL)
+
+// --- SHORT lookback performance (20 days = fast detection) ---
+int shortLookback = 20
+float techPerfS    = not na(techClose) and not na(techClose[shortLookback]) and techClose[shortLookback] > 0 ? (techClose / techClose[shortLookback] - 1) * 100 : na
+float finPerfS     = not na(finClose) and not na(finClose[shortLookback]) and finClose[shortLookback] > 0 ? (finClose / finClose[shortLookback] - 1) * 100 : na
+float healthPerfS  = not na(healthClose) and not na(healthClose[shortLookback]) and healthClose[shortLookback] > 0 ? (healthClose / healthClose[shortLookback] - 1) * 100 : na
+float energyPerfS  = not na(energyClose) and not na(energyClose[shortLookback]) and energyClose[shortLookback] > 0 ? (energyClose / energyClose[shortLookback] - 1) * 100 : na
+float staplesPerfS = not na(staplesClose) and not na(staplesClose[shortLookback]) and staplesClose[shortLookback] > 0 ? (staplesClose / staplesClose[shortLookback] - 1) * 100 : na
+float utilPerfS    = not na(utilClose) and not na(utilClose[shortLookback]) and utilClose[shortLookback] > 0 ? (utilClose / utilClose[shortLookback] - 1) * 100 : na
+
+bool rotShortValid = not na(techPerfS) and not na(finPerfS) and not na(healthPerfS) and not na(energyPerfS) and not na(staplesPerfS) and not na(utilPerfS)
+
+// --- Score LONG timeframe ---
+[earlyScoreL, midScoreL, lateScoreL, defenseScoreL] = scorePhases(techPerfL, finPerfL, healthPerfL, energyPerfL, staplesPerfL, utilPerfL)
+
+// --- Score SHORT timeframe ---
+[earlyScoreS, midScoreS, lateScoreS, defenseScoreS] = scorePhases(techPerfS, finPerfS, healthPerfS, energyPerfS, staplesPerfS, utilPerfS)
+
+// --- Determine LONG phase ---
+float maxScoreL = math.max(math.max(earlyScoreL, midScoreL), math.max(lateScoreL, defenseScoreL))
+string longPhase = "NO DATA"
 if rotDataValid
-    if finPerf > techPerf
-        earlyScore += 1
-    if finPerf > energyPerf
-        earlyScore += 1
-    if finPerf > staplesPerf
-        earlyScore += 1
+    if maxScoreL == midScoreL and midScoreL > 0
+        longPhase := "MID EXPANSION"
+    else if maxScoreL == earlyScoreL and earlyScoreL > 0
+        longPhase := "EARLY RECOVERY"
+    else if maxScoreL == lateScoreL and lateScoreL > 0
+        longPhase := "LATE EXPANSION"
+    else if maxScoreL == defenseScoreL and defenseScoreL > 0
+        longPhase := "DEFENSIVE"
 
-    if techPerf > finPerf
-        midScore += 1
-    if techPerf > energyPerf
-        midScore += 1
-    if techPerf > staplesPerf
-        midScore += 1
-    if techPerf > utilPerf
-        midScore += 1
+// --- Determine SHORT phase ---
+float maxScoreS = math.max(math.max(earlyScoreS, midScoreS), math.max(lateScoreS, defenseScoreS))
+string shortPhase = "NO DATA"
+if rotShortValid
+    if maxScoreS == midScoreS and midScoreS > 0
+        shortPhase := "MID EXPANSION"
+    else if maxScoreS == earlyScoreS and earlyScoreS > 0
+        shortPhase := "EARLY RECOVERY"
+    else if maxScoreS == lateScoreS and lateScoreS > 0
+        shortPhase := "LATE EXPANSION"
+    else if maxScoreS == defenseScoreS and defenseScoreS > 0
+        shortPhase := "DEFENSIVE"
 
-    if energyPerf > techPerf
-        lateScore += 1
-    if energyPerf > finPerf
-        lateScore += 1
-    if energyPerf > staplesPerf
-        lateScore += 1
+// --- Transition detection ---
+bool isTransitioning = rotDataValid and rotShortValid and longPhase != shortPhase and shortPhase != "NO DATA"
+string activePhase = rotShortValid ? shortPhase : longPhase
 
-    if staplesPerf > techPerf
-        defenseScore += 1
-    if utilPerf > techPerf
-        defenseScore += 1
-    if healthPerf > techPerf
-        defenseScore += 1
-    if staplesPerf > energyPerf
-        defenseScore += 1
-
-float maxScore = math.max(math.max(earlyScore, midScore), math.max(lateScore, defenseScore))
-
+// --- Final cycle phase display ---
 string cyclePhase = "NO DATA"
 color cycleColor = color.gray
 string nextPhase = "NO DATA"
 color nextColor = color.gray
+string transitionLabel = ""
 
 if rotDataValid
-    if maxScore == midScore and midScore > 0
-        cyclePhase := "MID EXPANSION"
+    if activePhase == "MID EXPANSION"
+        cyclePhase := isTransitioning ? "» MID EXPANSION" : "MID EXPANSION"
         cycleColor := color.blue
         nextPhase := "LATE EXPANSION"
         nextColor := color.orange
-    else if maxScore == earlyScore and earlyScore > 0
-        cyclePhase := "EARLY RECOVERY"
+    else if activePhase == "EARLY RECOVERY"
+        cyclePhase := isTransitioning ? "» EARLY RECOVERY" : "EARLY RECOVERY"
         cycleColor := color.green
         nextPhase := "MID EXPANSION"
         nextColor := color.blue
-    else if maxScore == lateScore and lateScore > 0
-        cyclePhase := "LATE EXPANSION"
+    else if activePhase == "LATE EXPANSION"
+        cyclePhase := isTransitioning ? "» LATE EXPANSION" : "LATE EXPANSION"
         cycleColor := color.orange
         nextPhase := "DEFENSIVE"
         nextColor := color.red
-    else if maxScore == defenseScore and defenseScore > 0
-        cyclePhase := "DEFENSIVE"
+    else if activePhase == "DEFENSIVE"
+        cyclePhase := isTransitioning ? "» DEFENSIVE" : "DEFENSIVE"
         cycleColor := color.red
         nextPhase := "EARLY RECOVERY"
         nextColor := color.green
 
+    if isTransitioning
+        transitionLabel := " (was " + longPhase + ")"
+
 // ============================================================================
-// SECTOR FIT — Current + Next Phase with TradingView name mapping
+// SECTOR FIT — uses active phase (short = faster detection)
 // ============================================================================
 string stockSector = syminfo.sector
 
 bool isFavoredSector = false
-if cyclePhase == "EARLY RECOVERY"
+if activePhase == "EARLY RECOVERY"
     isFavoredSector := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade" or stockSector == "Transportation"
-else if cyclePhase == "MID EXPANSION"
+else if activePhase == "MID EXPANSION"
     isFavoredSector := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications" or stockSector == "Transportation"
-else if cyclePhase == "LATE EXPANSION"
+else if activePhase == "LATE EXPANSION"
     isFavoredSector := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Transportation"
-else if cyclePhase == "DEFENSIVE"
+else if activePhase == "DEFENSIVE"
     isFavoredSector := stockSector == "Healthcare" or stockSector == "Health Technology" or stockSector == "Health Services" or stockSector == "Consumer Defensive" or stockSector == "Consumer Non-Durables" or stockSector == "Consumer Services" or stockSector == "Utilities" or stockSector == "Distribution Services"
 
 bool isNextFavored = false
@@ -655,7 +704,8 @@ if barstate.islast
 
     // --- SECTOR ROTATION ROWS ---
     table.cell(masterTable, 0, row, "CYCLE PHASE", text_color=color.white)
-    table.cell(masterTable, 1, row, cyclePhase, bgcolor=cycleColor, text_color=color.white)
+    string cycleDisplay = isTransitioning ? cyclePhase + transitionLabel : cyclePhase
+    table.cell(masterTable, 1, row, cycleDisplay, bgcolor=cycleColor, text_color=color.white, text_size=size.small)
     row += 1
 
     string sectorDisplay = stockSector != "" ? stockSector : "UNKNOWN"
