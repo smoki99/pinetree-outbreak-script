@@ -1,0 +1,62 @@
+//@version=5
+indicator("Palantir Strategy: Smart-Volume Guard V5", overlay=true)
+
+// --- INPUTS ---
+int smaFast = input.int(50, "Momentum Line (50)", minval=1)
+int smaSlow = input.int(200, "Trend Line (200)", minval=1)
+float volThreshold = input.float(1.5, "Volumen-Trigger (x Durchschnitt)", minval=1.1)
+
+// --- TECHNICAL CALCULATIONS ---
+float ma50 = ta.sma(close, smaFast)
+float ma200 = ta.sma(close, smaSlow)
+float avgVol = ta.sma(volume, 50)
+
+// 1. Trend-Analyse
+bool ma50Rising = ma50 > ma50[5]
+bool ma50Falling = ma50 < ma50[5]
+
+// 2. Smart-Volume Logik (Unterscheidung Kauf/Verkauf)
+float maxVol5 = ta.highest(volume, 5) // Wir schauen auf die letzten 5 Tage
+bool isHighVol = maxVol5 > avgVol * volThreshold
+
+// War der Volumen-Spike an einem grünen oder roten Tag?
+bool isUpDay = close > close[1]
+bool isDownDay = close < close[1]
+
+// 3. Status-Ermittlung
+string volStatus = "STABIL"
+color volColor = color.blue
+
+if isHighVol
+    if ma50Rising and close > ma50 // Trend ist intakt
+        volStatus := "AKKUMULATION"
+        volColor := color.green
+    else if isDownDay or close < ma50 // Trend wackelt
+        volStatus := "ABVERKAUF / PANIK"
+        volColor := color.red
+
+// --- SIGNAL LOGIC ---
+bool technicalEntry = ta.crossover(close, ta.highest(high, 50)[1]) and volume > avgVol * 1.2
+bool trendBreak = ta.crossunder(close, ma50) and isDownDay and volume > avgVol * 1.2
+
+// --- VISUALIZATION ---
+plot(ma50, color=ma50Rising ? color.blue : color.red, linewidth=2, title="50 SMA")
+plot(ma200, color=color.white, linewidth=3, title="200 SMA")
+
+plotshape(technicalEntry, title="ENTRY", style=shape.labelup, location=location.belowbar, color=color.green, text="ENTRY", textcolor=color.white, size=size.small)
+plotshape(trendBreak, title="WARNUNG", style=shape.labeldown, location=location.abovebar, color=color.red, text="WARNUNG", textcolor=color.white, size=size.normal)
+
+// --- SMART DASHBOARD ---
+var table fundTable = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+if barstate.islast
+    string ratingText = (close < ma200 * 0.9) ? "FINGER WEG!" : (close > ma50 ? "KAUFEN / HOLD" : "BEOBACHTEN")
+    color ratingColor = (close < ma200 * 0.9) ? color.purple : (close > ma50 ? color.green : color.orange)
+
+    table.cell(fundTable, 0, 0, "TREND", text_color=color.white)
+    table.cell(fundTable, 1, 0, ma50Rising ? "BULLISCH" : "BÄRISCH", bgcolor=ma50Rising ? color.green : color.red, text_color=color.white)
+    
+    table.cell(fundTable, 0, 1, "VOLUMEN", text_color=color.white)
+    table.cell(fundTable, 1, 1, volStatus, bgcolor=volColor, text_color=color.white)
+    
+    table.cell(fundTable, 0, 2, "ACTION", text_color=color.white)
+    table.cell(fundTable, 1, 2, ratingText, bgcolor=ratingColor, text_color=color.white)
