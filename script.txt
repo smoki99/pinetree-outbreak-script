@@ -18,6 +18,7 @@ float rsiOB          = input.float(75,  "RSI Overbought Level",         minval=6
 int atrLen           = input.int(14,    "ATR Length",                    minval=5)
 bool showForecast    = input.bool(true, "Show P/FCF Price Forecast Lines")
 float sharesInput    = input.float(0, "Shares Outstanding (B) — 0=auto", minval=0, tooltip="Enter shares in billions. Set 0 to auto-detect.")
+int rotationLookback = input.int(60, "Sector Rotation Lookback (Days)", minval=20, maxval=120)
 
 // ============================================================================
 // DATA REQUESTS (Global Scope)
@@ -41,7 +42,6 @@ float niFY    = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
 float epsFY1  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
 float niFY1   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")[1]
 
-// FIX 2: Shares Outstanding — use math.abs() + fallback to previous year
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
 float sharesOutPrev = not na(niFY1) and not na(epsFY1) and epsFY1 != 0 ? math.abs(niFY1 / epsFY1) : na
 float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : (not na(sharesOutAuto) ? sharesOutAuto : sharesOutPrev)
@@ -53,10 +53,18 @@ float weeklyMA200 = request.security(syminfo.tickerid, "W", ta.sma(close, 40))
 bool weeklyBullish = not na(weeklyMA50) and not na(weeklyMA200) and weeklyMA50 > weeklyMA200
 
 // ============================================================================
+// SECTOR ROTATION MODULE — ETF Data Requests
+// ============================================================================
+float techClose    = request.security("AMEX:XLK",  timeframe.period, close)
+float finClose     = request.security("AMEX:XLF",  timeframe.period, close)
+float healthClose  = request.security("AMEX:XLV",  timeframe.period, close)
+float energyClose  = request.security("AMEX:XLE",  timeframe.period, close)
+float staplesClose = request.security("AMEX:XLP",  timeframe.period, close)
+float utilClose    = request.security("AMEX:XLU",  timeframe.period, close)
+
+// ============================================================================
 // FUNDAMENTAL ANALYSIS
 // ============================================================================
-
-// FIX 1: growthCAGR — handles negative/zero base values
 growthCAGR(float current, float y1, float y2, float y3, float y4) =>
     float cagr = na
     string period = "N/A"
@@ -73,7 +81,6 @@ growthCAGR(float current, float y1, float y2, float y3, float y4) =>
         cagr := ((current / y1) - 1) * 100
         period := "1Y"
     else if not na(current)
-        // Handle negative/zero cases explicitly
         float baseVal = not na(y4) ? y4 : (not na(y3) ? y3 : (not na(y2) ? y2 : (not na(y1) ? y1 : na)))
         if not na(baseVal)
             if baseVal <= 0 and current > 0
@@ -83,7 +90,6 @@ growthCAGR(float current, float y1, float y2, float y3, float y4) =>
                 cagr := -100.0
                 period := "DETERIORATING"
             else if baseVal < 0 and current < 0
-                // Both negative — compare magnitude
                 cagr := current > baseVal ? 50.0 : -50.0
                 period := current > baseVal ? "IMPROVING" : "WORSENING"
             else if baseVal == 0 and current == 0
@@ -138,25 +144,16 @@ if isRestructured
     revColorAdj := color.orange
 
 // ============================================================================
-// FIX 3: GAAP Profit — add "Cash Profitable" for asset-heavy companies
+// GAAP Profit — with Cash Profitable for asset-heavy companies
 // ============================================================================
 bool isGAAPProfit = nz(netIncome) > 0
 
-// Secondary: if GAAP fails but FCF and EPS are both positive
-// → company is cash-profitable, GAAP loss is from non-cash items
-// Fixes: Tidewater, airlines, shipping, infrastructure, REITs
-bool isCashProfitable = (not isGAAPProfit) and
-                         (not na(fcfY0_y) and fcfY0_y > 0) and
-                         (not na(epsFY) and epsFY > 0)
+bool isCashProfitable = (not isGAAPProfit) and (not na(fcfY0_y) and fcfY0_y > 0) and (not na(epsFY) and epsFY > 0)
 
-// Either type counts as "profitable" for scoring
 bool isProfitable = isGAAPProfit or isCashProfitable
 
-// Dashboard labels for profit row
-string profitLabel = isGAAPProfit ? "YES (" + str.tostring(netIncome / 1000000, "#.#") + "M)" :
-                     isCashProfitable ? "CASH PROF. (" + str.tostring(fcfY0_y / 1000000, "#.#") + "M FCF)" :
-                     "NO"
-color profitColor = isGAAPProfit ? color.green :  isCashProfitable ? color.blue : color.red
+string profitLabel = isGAAPProfit ? "YES (" + str.tostring(netIncome / 1000000, "#.#") + "M)" : isCashProfitable ? "CASH PROF. (" + str.tostring(fcfY0_y / 1000000, "#.#") + "M FCF)" : "NO"
+color profitColor = isGAAPProfit ? color.green : isCashProfitable ? color.blue : color.red
 
 // ============================================================================
 // 8 FUNDAMENTAL WARNING SIGNS
@@ -180,7 +177,6 @@ bool warnFCFDeteriorate = not isRestructured and not na(fcf1YChange) and fcf1YCh
 
 bool hasShares = not na(sharesOut) and sharesOut > 0
 
-// FIX 4: P/FCF — handle negative FCF companies
 bool isFCFNegative = not na(fcfY0_y) and fcfY0_y <= 0
 float fcfPS0 = hasShares and not na(fcfY0_y) and fcfY0_y > 0 ? fcfY0_y / sharesOut : na
 float currentPFCF = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
@@ -267,8 +263,6 @@ float fcfGrowthRate = math.max(-0.4, math.min(smartFCFGrowth / 100.0, 0.4))
 // ============================================================================
 // P/FCF PRICE FORECAST
 // ============================================================================
-
-// FIX 5: Forecast — handle negative FCF companies
 bool forecastValid = not na(currentPFCF) and not na(fcfPS0) and fcfPS0 > 0 and not isFCFNegative
 
 float fcfPerShareFwd = forecastValid ? fcfPS0 * (1 + fcfGrowthRate) : na
@@ -281,7 +275,7 @@ float upsideBear = forecastValid and close > 0 ? ((priceBear / close) - 1) * 100
 float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100 : na
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
 
-// FIX 6: Fund Grade — includes Cash Profitable + "F" grade
+// Fund Grade
 int fundScore = 0
 if isProfitable
     fundScore += 1
@@ -294,8 +288,125 @@ if revValid and revCAGR > 5
 if not na(epsFY) and epsFY > 0
     fundScore += 1
 
-string fundGrade = fundScore >= 5 ? "A+" : (fundScore >= 4 ? "A" : (fundScore >= 3 ? "B" : (fundScore >= 2 ? "C" : (fundScore >= 1 ? "D" : "F"))))
-color fundGradeColor = fundScore >= 4 ? color.green : (fundScore >= 3 ? color.blue : (fundScore >= 2 ? color.orange : color.red))
+string fundGrade = fundScore >= 5 ? "A+" : fundScore >= 4 ? "A" : fundScore >= 3 ? "B" : fundScore >= 2 ? "C" : fundScore >= 1 ? "D" : "F"
+color fundGradeColor = fundScore >= 4 ? color.green : fundScore >= 3 ? color.blue : fundScore >= 2 ? color.orange : color.red
+
+// ============================================================================
+// SECTOR ROTATION — Phase Detection with NEXT PHASE
+// ============================================================================
+float techPerf    = not na(techClose) and not na(techClose[rotationLookback]) and techClose[rotationLookback] > 0 ? (techClose / techClose[rotationLookback] - 1) * 100 : na
+float finPerf     = not na(finClose) and not na(finClose[rotationLookback]) and finClose[rotationLookback] > 0 ? (finClose / finClose[rotationLookback] - 1) * 100 : na
+float healthPerf  = not na(healthClose) and not na(healthClose[rotationLookback]) and healthClose[rotationLookback] > 0 ? (healthClose / healthClose[rotationLookback] - 1) * 100 : na
+float energyPerf  = not na(energyClose) and not na(energyClose[rotationLookback]) and energyClose[rotationLookback] > 0 ? (energyClose / energyClose[rotationLookback] - 1) * 100 : na
+float staplesPerf = not na(staplesClose) and not na(staplesClose[rotationLookback]) and staplesClose[rotationLookback] > 0 ? (staplesClose / staplesClose[rotationLookback] - 1) * 100 : na
+float utilPerf    = not na(utilClose) and not na(utilClose[rotationLookback]) and utilClose[rotationLookback] > 0 ? (utilClose / utilClose[rotationLookback] - 1) * 100 : na
+
+bool rotDataValid = not na(techPerf) and not na(finPerf) and not na(healthPerf) and not na(energyPerf) and not na(staplesPerf) and not na(utilPerf)
+
+float earlyScore = 0.0
+float midScore = 0.0
+float lateScore = 0.0
+float defenseScore = 0.0
+
+if rotDataValid
+    if finPerf > techPerf
+        earlyScore += 1
+    if finPerf > energyPerf
+        earlyScore += 1
+    if finPerf > staplesPerf
+        earlyScore += 1
+
+    if techPerf > finPerf
+        midScore += 1
+    if techPerf > energyPerf
+        midScore += 1
+    if techPerf > staplesPerf
+        midScore += 1
+    if techPerf > utilPerf
+        midScore += 1
+
+    if energyPerf > techPerf
+        lateScore += 1
+    if energyPerf > finPerf
+        lateScore += 1
+    if energyPerf > staplesPerf
+        lateScore += 1
+
+    if staplesPerf > techPerf
+        defenseScore += 1
+    if utilPerf > techPerf
+        defenseScore += 1
+    if healthPerf > techPerf
+        defenseScore += 1
+    if staplesPerf > energyPerf
+        defenseScore += 1
+
+float maxScore = math.max(math.max(earlyScore, midScore), math.max(lateScore, defenseScore))
+
+string cyclePhase = "NO DATA"
+color cycleColor = color.gray
+string nextPhase = "NO DATA"
+color nextColor = color.gray
+
+if rotDataValid
+    if maxScore == midScore and midScore > 0
+        cyclePhase := "MID EXPANSION"
+        cycleColor := color.blue
+        nextPhase := "LATE EXPANSION"
+        nextColor := color.orange
+    else if maxScore == earlyScore and earlyScore > 0
+        cyclePhase := "EARLY RECOVERY"
+        cycleColor := color.green
+        nextPhase := "MID EXPANSION"
+        nextColor := color.blue
+    else if maxScore == lateScore and lateScore > 0
+        cyclePhase := "LATE EXPANSION"
+        cycleColor := color.orange
+        nextPhase := "DEFENSIVE"
+        nextColor := color.red
+    else if maxScore == defenseScore and defenseScore > 0
+        cyclePhase := "DEFENSIVE"
+        cycleColor := color.red
+        nextPhase := "EARLY RECOVERY"
+        nextColor := color.green
+
+// ============================================================================
+// SECTOR FIT — Current + Next Phase with TradingView name mapping
+// ============================================================================
+string stockSector = syminfo.sector
+
+bool isFavoredSector = false
+if cyclePhase == "EARLY RECOVERY"
+    isFavoredSector := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade"
+else if cyclePhase == "MID EXPANSION"
+    isFavoredSector := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications"
+else if cyclePhase == "LATE EXPANSION"
+    isFavoredSector := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing"
+else if cyclePhase == "DEFENSIVE"
+    isFavoredSector := stockSector == "Healthcare" or stockSector == "Health Technology" or stockSector == "Health Services" or stockSector == "Consumer Defensive" or stockSector == "Consumer Non-Durables" or stockSector == "Consumer Services" or stockSector == "Utilities" or stockSector == "Distribution Services"
+
+bool isNextFavored = false
+if nextPhase == "EARLY RECOVERY"
+    isNextFavored := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade"
+else if nextPhase == "MID EXPANSION"
+    isNextFavored := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications"
+else if nextPhase == "LATE EXPANSION"
+    isNextFavored := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing"
+else if nextPhase == "DEFENSIVE"
+    isNextFavored := stockSector == "Healthcare" or stockSector == "Health Technology" or stockSector == "Health Services" or stockSector == "Consumer Defensive" or stockSector == "Consumer Non-Durables" or stockSector == "Consumer Services" or stockSector == "Utilities" or stockSector == "Distribution Services"
+
+string sectorFitLabel = "NO DATA"
+color sectorFitColor = color.gray
+if rotDataValid
+    if isFavoredSector
+        sectorFitLabel := "FAVORED"
+        sectorFitColor := color.green
+    else if isNextFavored
+        sectorFitLabel := "NEXT IN FAVOR"
+        sectorFitColor := color.blue
+    else
+        sectorFitLabel := "OUT OF FAVOR"
+        sectorFitColor := color.red
 
 // ============================================================================
 // TECHNICAL CALCULATIONS
@@ -373,7 +484,6 @@ float rrRatio        = riskPerShare > 0 ? rewardPerShare / riskPerShare : na
 bool rawEntry   = ta.crossover(close, highestHigh[1]) and volume > avgVol * 1.2 and close > ma50 and close > ma200
 bool rawWarning = ta.crossunder(close, ma50) and volume > avgVol * 1.1
 
-// FIX: Use isProfitable instead of isGAAPProfit for entry filter
 bool filteredEntry   = rawEntry and isProfitable and isTrending and rsiVal < rsiOB and weeklyBullish
 bool filteredWarning = rawWarning
 
@@ -409,9 +519,9 @@ plotshape(entrySignal,   title="ENTRY",   style=shape.labelup,   location=locati
 plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=location.abovebar, color=color.red,   text="WARNING", textcolor=color.white, size=size.small)
 
 // ============================================================================
-// DASHBOARD
+// DASHBOARD — 27 rows
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 24, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 27, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -428,7 +538,6 @@ if barstate.islast
     table.cell(masterTable, 1, row, fundGrade + " (" + str.tostring(fundScore) + "/5)", bgcolor=fundGradeColor, text_color=color.white)
     row += 1
 
-    // FIX 8: GAAP Profit row — shows CASH PROF. in blue for asset-heavy companies
     table.cell(masterTable, 0, row, "GAAP PROFIT", text_color=color.white)
     table.cell(masterTable, 1, row, profitLabel, bgcolor=profitColor, text_color=color.white)
     row += 1
@@ -459,7 +568,6 @@ if barstate.islast
         table.cell(masterTable, 1, row, "DETERIORATING", bgcolor=color.red, text_color=color.white)
         row += 1
 
-    // FIX 4: P/FCF display — shows "NEG FCF ✗" for negative FCF companies
     string pfcfLabel = "N/A"
     color pfcfNowColor = color.gray
     if isFCFNegative
@@ -475,7 +583,6 @@ if barstate.islast
     table.cell(masterTable, 1, row, pfcfLabel, bgcolor=pfcfNowColor, text_color=color.white)
     row += 1
 
-    // FIX 5: Forecast basis — shows "NO FORECAST (FCF < 0)" when not calculable
     string forecastBasisText = "N/A"
     color basisColor = color.gray
     if not forecastValid and isFCFNegative
@@ -533,6 +640,20 @@ if barstate.islast
 
     table.cell(masterTable, 0, row, "RS vs " + compSymbol, text_color=color.white)
     table.cell(masterTable, 1, row, rsDataValid ? (isRSStrong ? "STRONGER" : "WEAKER") : "NO DATA", bgcolor=rsDataValid ? rsColor : color.gray, text_color=color.white)
+    row += 1
+
+    // --- SECTOR ROTATION ROWS ---
+    table.cell(masterTable, 0, row, "CYCLE PHASE", text_color=color.white)
+    table.cell(masterTable, 1, row, cyclePhase, bgcolor=cycleColor, text_color=color.white)
+    row += 1
+
+    string sectorDisplay = stockSector != "" ? stockSector : "UNKNOWN"
+    table.cell(masterTable, 0, row, "SECTOR FIT", text_color=color.white)
+    table.cell(masterTable, 1, row, sectorFitLabel + " (" + sectorDisplay + ")", bgcolor=sectorFitColor, text_color=color.white, text_size=size.small)
+    row += 1
+
+    table.cell(masterTable, 0, row, "NEXT PHASE", text_color=color.white)
+    table.cell(masterTable, 1, row, nextPhase, bgcolor=nextColor, text_color=color.white)
     row += 1
 
     table.cell(masterTable, 0, row, "PROB. WARNING (5d)", text_color=color.white)
