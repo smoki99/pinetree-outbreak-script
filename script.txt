@@ -458,12 +458,18 @@ else if nextPhase == "DEFENSIVE"
 string sectorFitLabel = "NO DATA"
 color sectorFitColor = color.gray
 if rotDataValid
-    if isFavoredSector
+    if isFavoredSector and not isTransitioning
         sectorFitLabel := "FAVORED"
         sectorFitColor := color.green
+    else if isFavoredSector and isTransitioning
+        sectorFitLabel := "ROTATING IN"
+        sectorFitColor := color.green
     else if isNextFavored
-        sectorFitLabel := "NEXT IN FAVOR"
+        sectorFitLabel := "SMART MONEY"
         sectorFitColor := color.blue
+    else if isTransitioning and not isFavoredSector and not isNextFavored
+        sectorFitLabel := "ROTATING OUT"
+        sectorFitColor := color.orange
     else
         sectorFitLabel := "OUT OF FAVOR"
         sectorFitColor := color.red
