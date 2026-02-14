@@ -31,14 +31,22 @@ float fcfAnnual = request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
 
 fcfYearly() => request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
 revYearly() => request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
+niYearly()  => request.financial(syminfo.tickerid, "NET_INCOME", "FY")
 
 [fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y] = request.security(syminfo.tickerid, "12M", [fcfYearly(), fcfYearly()[1], fcfYearly()[2], fcfYearly()[3], fcfYearly()[4]])
 [revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revYearly(), revYearly()[1], revYearly()[2], revYearly()[3], revYearly()[4]])
+[niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niYearly(), niYearly()[1]])
 
-float epsFY  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
-float niFY   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
+float epsFY   = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
+float niFY    = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
+float epsFY1  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
+float niFY1   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")[1]
+
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
 float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : sharesOutAuto
+
+// Shares outstanding previous year (for dilution check)
+float sharesOutPrev = not na(niFY1) and not na(epsFY1) and epsFY1 != 0 ? math.abs(niFY1 / epsFY1) : na
 
 float compClose = request.security(compSymbol, timeframe.period, close)
 
@@ -105,44 +113,108 @@ if fcfValid
         fcfTrend := "STABLE " + fcfPeriod + " (" + str.tostring(fcfCAGR, "#.#") + "%)"
         fcfColor := color.blue
 
-// ============================================================================
-// SMART FCF GROWTH RATE (Investment Phase Detection)
-// ============================================================================
-// Detect divergence: revenue growing but FCF declining = investment phase
-// In that case, dampen the FCF decline to avoid unrealistic projections
+// Short-term revenue growth (1Y) for growth stall detection
+float rev1YCAGR = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
 
+// ============================================================================
+// 8 FUNDAMENTAL WARNING SIGNS
+// ============================================================================
+
+// 1. DILUTION — shares outstanding growing >5% YoY
+float dilutionPct = not na(sharesOut) and not na(sharesOutPrev) and sharesOutPrev > 0 ? ((sharesOut / sharesOutPrev) - 1) * 100 : na
+bool warnDilution = not na(dilutionPct) and dilutionPct > 5
+
+// 2. FCF NEGATIVE — current year free cash flow < 0
+bool warnFCFNeg = not na(fcfY0_y) and fcfY0_y <= 0
+
+// 3. MARGIN SQUEEZE — net income growing slower than revenue (both positive)
+float niGrowth  = not na(niY0_y) and not na(niY1_y) and niY1_y > 0 and niY0_y > 0 ? ((niY0_y / niY1_y) - 1) * 100 : na
+float revGrowth = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
+bool warnMarginSqueeze = not na(niGrowth) and not na(revGrowth) and revGrowth > 0 and niGrowth < revGrowth and (revGrowth - niGrowth) > 5
+
+// 4. REVENUE DECLINE — revenue CAGR < -5%
+bool warnRevDecline = revValid and revCAGR < -5
+
+// 5. EARNINGS LOSS — EPS negative
+bool warnEPSLoss = not na(epsFY) and epsFY < 0
+
+// 6. FCF DETERIORATING — FCF declining >20% YoY when NOT in investment phase
 bool isInvestmentPhase = revValid and fcfValid and revCAGR > 5 and fcfCAGR < -10
 bool isDeteriorating   = revValid and fcfValid and revCAGR < -5 and fcfCAGR < -10
+float fcf1YChange = not na(fcfY0_y) and not na(fcfY1_y) and fcfY1_y > 0 ? ((fcfY0_y / fcfY1_y) - 1) * 100 : na
+bool warnFCFDeteriorate = not na(fcf1YChange) and fcf1YChange < -20 and not isInvestmentPhase
 
+// 7. OVERVALUED — P/FCF > 80x
+bool hasShares = not na(sharesOut) and sharesOut > 0
+float fcfPS0 = hasShares and not na(fcfY0_y) and fcfY0_y > 0 ? fcfY0_y / sharesOut : na
+float currentPFCF = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
+bool isHighMultiple = not na(currentPFCF) and currentPFCF > 60
+bool warnOvervalued = not na(currentPFCF) and currentPFCF > 80
+
+// 8. GROWTH STALL — recent 1Y revenue growth much lower than longer-term CAGR
+bool warnGrowthStall = revValid and not na(rev1YCAGR) and revCAGR > 10 and rev1YCAGR < 5 and (revCAGR - rev1YCAGR) > 10
+
+// --- Total warning count ---
+int warnCount = 0
+if warnDilution
+    warnCount += 1
+if warnFCFNeg
+    warnCount += 1
+if warnMarginSqueeze
+    warnCount += 1
+if warnRevDecline
+    warnCount += 1
+if warnEPSLoss
+    warnCount += 1
+if warnFCFDeteriorate
+    warnCount += 1
+if warnOvervalued
+    warnCount += 1
+if warnGrowthStall
+    warnCount += 1
+
+color warnCountColor = warnCount == 0 ? color.green : (warnCount <= 2 ? color.orange : color.red)
+
+// --- Build warning text (compact) ---
+string warnText = ""
+if warnDilution
+    warnText += "DILUTION(" + str.tostring(dilutionPct, "#.#") + "%) "
+if warnFCFNeg
+    warnText += "FCF<0 "
+if warnMarginSqueeze
+    warnText += "MARGIN↓ "
+if warnRevDecline
+    warnText += "REV↓ "
+if warnEPSLoss
+    warnText += "EPS<0 "
+if warnFCFDeteriorate
+    warnText += "FCF↓↓ "
+if warnOvervalued
+    warnText += "P/FCF>80 "
+if warnGrowthStall
+    warnText += "STALL "
+if warnCount == 0
+    warnText := "ALL CLEAR"
+
+// ============================================================================
+// SMART FCF GROWTH RATE
+// ============================================================================
 float smartFCFGrowth = 0.0
 string fcfAdjLabel   = ""
 
 if isInvestmentPhase
-    // Revenue growing, FCF declining → investment phase
-    // Use average of revenue growth and FCF decline (dampened)
-    // Example: Rev +12%, FCF -50% → adjusted = (-50 + 12) / 2 = -19%
-    // But floor at 0% — assume FCF at least stabilizes
     smartFCFGrowth := math.max(0, (fcfCAGR + revCAGR) / 2.0)
     fcfAdjLabel := "INVEST ADJ"
 else if fcfValid
     smartFCFGrowth := fcfCAGR
-    fcfAdjLabel := ""
 else
     smartFCFGrowth := 0.0
-    fcfAdjLabel := ""
 
-// Cap at ±50%
 float fcfGrowthRate = math.max(-0.5, math.min(smartFCFGrowth / 100.0, 0.5))
 
 // ============================================================================
 // P/FCF PRICE FORECAST
 // ============================================================================
-bool hasShares = not na(sharesOut) and sharesOut > 0
-float fcfPS0 = hasShares and not na(fcfY0_y) and fcfY0_y > 0 ? fcfY0_y / sharesOut : na
-
-float currentPFCF = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
-bool isHighMultiple = not na(currentPFCF) and currentPFCF > 60
-
 bool forecastValid = not na(currentPFCF) and not na(fcfPS0) and fcfPS0 > 0
 
 float fcfPerShareFwd = forecastValid ? fcfPS0 * (1 + fcfGrowthRate) : na
@@ -284,7 +356,7 @@ plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=locati
 // ============================================================================
 // DASHBOARD
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 22, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 24, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -292,6 +364,11 @@ if barstate.islast
     color rsColor = isRSStrong ? color.green : color.red
 
     int row = 0
+
+    // --- Warning Signs (TOP of dashboard for visibility) ---
+    table.cell(masterTable, 0, row, "⚠ WARNINGS", text_color=color.white)
+    table.cell(masterTable, 1, row, str.tostring(warnCount) + "/8: " + warnText, bgcolor=warnCountColor, text_color=color.white, text_size=size.small)
+    row += 1
 
     // --- Fundamentals ---
     table.cell(masterTable, 0, row, "FUND. GRADE", text_color=color.white)
@@ -315,7 +392,7 @@ if barstate.islast
     table.cell(masterTable, 1, row, fcfTrend, bgcolor=fcfColor, text_color=color.white)
     row += 1
 
-    // --- Investment Phase Indicator ---
+    // --- Investment Phase ---
     if isInvestmentPhase
         table.cell(masterTable, 0, row, "⚠ PHASE", text_color=color.white)
         table.cell(masterTable, 1, row, "INVESTING (Rev↑ FCF↓)", bgcolor=color.orange, text_color=color.white)
@@ -338,9 +415,8 @@ if barstate.islast
     string growthLabel = (fcfGrowthRate >= 0 ? "+" : "") + str.tostring(fcfGrowthRate * 100, "#.#") + "%"
     if fcfAdjLabel != ""
         growthLabel += " (" + fcfAdjLabel + ")"
-    string basisText = "FCF: " + growthLabel + " | ±30% MULT"
     table.cell(masterTable, 0, row, "FORECAST BASIS", text_color=color.white)
-    table.cell(masterTable, 1, row, forecastValid ? basisText : "N/A", bgcolor=isInvestmentPhase ? color.orange : color.gray, text_color=color.white)
+    table.cell(masterTable, 1, row, forecastValid ? "FCF: " + growthLabel + " | ±30% MULT" : "N/A", bgcolor=isInvestmentPhase ? color.orange : color.gray, text_color=color.white)
     row += 1
 
     // --- 1Y Price Forecast ---
