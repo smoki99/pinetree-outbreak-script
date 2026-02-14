@@ -42,6 +42,9 @@ float niFY    = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
 float epsFY1  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
 float niFY1   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")[1]
 
+// Debt data for leverage warning
+float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
+
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
 float sharesOutPrev = not na(niFY1) and not na(epsFY1) and epsFY1 != 0 ? math.abs(niFY1 / epsFY1) : na
 float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : (not na(sharesOutAuto) ? sharesOutAuto : sharesOutPrev)
@@ -156,7 +159,7 @@ string profitLabel = isGAAPProfit ? "YES (" + str.tostring(netIncome / 1000000, 
 color profitColor = isGAAPProfit ? color.green : isCashProfitable ? color.blue : color.red
 
 // ============================================================================
-// 8 FUNDAMENTAL WARNING SIGNS
+// 9 FUNDAMENTAL WARNING SIGNS
 // ============================================================================
 float dilutionPct = not na(sharesOut) and not na(sharesOutPrev) and sharesOutPrev > 0 ? ((sharesOut / sharesOutPrev) - 1) * 100 : na
 bool warnDilution = not na(dilutionPct) and dilutionPct > 5
@@ -185,6 +188,10 @@ bool warnOvervalued = not na(currentPFCF) and currentPFCF > 80
 
 bool warnGrowthStall = not isRestructured and revValid and not na(rev1YCAGR) and revCAGR > 10 and rev1YCAGR < 5 and (revCAGR - rev1YCAGR) > 10
 
+// Warning 9: Excessive Debt — Debt/FCF ratio > 10 years to repay
+float debtToFCF = not na(totalDebt) and not na(fcfY0_y) and fcfY0_y > 0 ? totalDebt / fcfY0_y : na
+bool warnDebtHeavy = not na(debtToFCF) and debtToFCF > 10
+
 int warnCount = 0
 if warnDilution
     warnCount += 1
@@ -201,6 +208,8 @@ if warnFCFDeteriorate
 if warnOvervalued
     warnCount += 1
 if warnGrowthStall
+    warnCount += 1
+if warnDebtHeavy
     warnCount += 1
 
 color warnCountColor = warnCount == 0 ? color.green : (warnCount <= 2 ? color.orange : color.red)
@@ -222,6 +231,8 @@ if warnOvervalued
     warnText += "P/FCF>80 "
 if warnGrowthStall
     warnText += "STALL "
+if warnDebtHeavy
+    warnText += "DEBT(" + str.tostring(debtToFCF, "#.#") + "Y) "
 if isRestructured
     warnText += "📋RESTRUCTURED "
 if warnCount == 0 and not isRestructured
@@ -377,9 +388,9 @@ string stockSector = syminfo.sector
 
 bool isFavoredSector = false
 if cyclePhase == "EARLY RECOVERY"
-    isFavoredSector := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade"
+    isFavoredSector := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade" or stockSector == "Transportation"
 else if cyclePhase == "MID EXPANSION"
-    isFavoredSector := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications"
+    isFavoredSector := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications" or stockSector == "Transportation"
 else if cyclePhase == "LATE EXPANSION"
     isFavoredSector := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Transportation"
 else if cyclePhase == "DEFENSIVE"
@@ -387,9 +398,9 @@ else if cyclePhase == "DEFENSIVE"
 
 bool isNextFavored = false
 if nextPhase == "EARLY RECOVERY"
-    isNextFavored := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade"
+    isNextFavored := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade" or stockSector == "Transportation"
 else if nextPhase == "MID EXPANSION"
-    isNextFavored := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications"
+    isNextFavored := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications" or stockSector == "Transportation"
 else if nextPhase == "LATE EXPANSION"
     isNextFavored := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Transportation"
 else if nextPhase == "DEFENSIVE"
@@ -531,7 +542,7 @@ if barstate.islast
     int row = 0
 
     table.cell(masterTable, 0, row, "⚠ WARNINGS", text_color=color.white)
-    table.cell(masterTable, 1, row, str.tostring(warnCount) + "/8: " + warnText, bgcolor=warnCountColor, text_color=color.white, text_size=size.small)
+    table.cell(masterTable, 1, row, str.tostring(warnCount) + "/9: " + warnText, bgcolor=warnCountColor, text_color=color.white, text_size=size.small)
     row += 1
 
     table.cell(masterTable, 0, row, "FUND. GRADE", text_color=color.white)
