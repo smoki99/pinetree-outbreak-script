@@ -1,12 +1,23 @@
 //@version=5
-indicator("Palantir Strategy: Full-Spectrum V7", overlay=true)
+indicator("Palantir Strategy: Ultimate Master Guard V8", overlay=true)
 
 // --- INPUTS ---
 int smaFast = input.int(50, "Momentum Line (50)", minval=1)
 int smaSlow = input.int(200, "Trend Line (200)", minval=1)
 float volThreshold = input.float(1.5, "Volumen-Trigger (x Durchschnitt)", minval=1.1)
 int baseLookback = input.int(50, "Base Lookback Period (Bars)", minval=20)
-int probLookback = input.int(20, "Vola-Berechnungszeitraum (Prognose)", minval=5)
+int probLookback = input.int(20, "Vola-Prognose Zeitraum", minval=5)
+string compSymbol = input.symbol("SPY", "Vergleichs-Symbol (RS)")
+
+// --- DATA REQUESTS (Global Scope) ---
+// Fundamentaldaten
+float netIncomeFQ = request.financial(syminfo.tickerid, "NET_INCOME", "FQ")
+float netIncomeFY = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
+float netIncome = not na(netIncomeFQ) ? netIncomeFQ : netIncomeFY
+bool isGAAPProfit = nz(netIncome) > 0
+
+// Vergleichsdaten für Relative Stärke (SPY)
+float spyClose = request.security(compSymbol, timeframe.period, close)
 
 // --- TECHNICAL CALCULATIONS ---
 float ma50 = ta.sma(close, smaFast)
@@ -15,68 +26,87 @@ float avgVol = ta.sma(volume, 50)
 float highestHigh = ta.highest(high, baseLookback)
 float lowestLow = ta.lowest(low, baseLookback)
 
-// --- PROGNOSE LOGIK (Nächste 5 Tage) ---
+// 1. Relative Stärke (RS) Analyse
+// Wir vergleichen die Performance der letzten 20 Tage mit dem SPY
+float symbolPerf = (close - close[20]) / close[20]
+float spyPerf = (spyClose - spyClose[20]) / spyClose[20]
+bool isRSStrong = symbolPerf > spyPerf
+
+// 2. Prognose Logik (Nächste 5 Tage)
 float stdDev = ta.stdev(close, probLookback)
 float expectedMove = stdDev * math.sqrt(5) 
-
-// A. Warning Wahrscheinlichkeit (Absturz unter MA50)
 float distToMA50 = close - ma50
 float warnProb = distToMA50 > 0 ? math.min(100, (expectedMove / distToMA50) * 50) : 100.0
-
-// B. Entry Wahrscheinlichkeit (Ausbruch über 50-Tage High)
 float distToHigh = highestHigh - close
 float entryProb = distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : 0.0
 
-// --- SMART-VOLUME & TREND LOGIC ---
+// 3. Smart-Volume Logik
 bool ma50Rising = ma50 > ma50[5]
 float maxVol5 = ta.highest(volume, 5)
 bool isHighVol = maxVol5 > avgVol * volThreshold
-
 string volStatus = "STABIL"
 color volColor = color.blue
 if isHighVol
-    if ma50Rising and close > ma50
+    if close > close[1] and close > ma50
         volStatus := "AKKUMULATION"
         volColor := color.green
     else
         volStatus := "ABVERKAUF"
         volColor := color.red
 
-// --- HISTORISCHE SIGNALE (Labels) ---
-// Entry: Ausbruch aus Base + Volumen + GAAP (angenommen über MA200)
-bool technicalEntry = ta.crossover(close, highestHigh[1]) and volume > avgVol * 1.2 and close > ma50
-// Exit: Bruch der Momentum-Linie bei erhöhtem Volumen
+// --- SIGNALE (Labels) ---
+// Entry: Ausbruch + Volumen + GAAP Profit + Über SMA 200
+bool technicalEntry = ta.crossover(close, highestHigh[1]) and volume > avgVol * 1.2 and close > ma50 and close > ma200
+// Exit: Bruch der Momentum-Linie bei erhöhtem Volumen (oder bärischer Trend)
 bool trendWarning = ta.crossunder(close, ma50) and volume > avgVol * 1.1
 
 // --- VISUALIZATION ---
-bgcolor(ta.highest(high, 50) - ta.lowest(low, 50) < ta.lowest(low, 50) * 0.15 ? color.new(color.gray, 90) : na)
+// Base Building Hintergrund
+bool isBase = (highestHigh - lowestLow) < lowestLow * 0.15
+bgcolor(isBase ? color.new(color.gray, 90) : na)
+
 plot(ma50, color=ma50Rising ? color.blue : color.red, linewidth=2, title="50 SMA")
 plot(ma200, color=color.white, linewidth=3, title="200 SMA")
 
-// Zeichne historische Entry/Exit Punkte
-plotshape(technicalEntry, title="ENTRY", style=shape.labelup, location=location.belowbar, color=color.green, text="ENTRY", textcolor=color.white, size=size.small)
+// Historische Signale zeichnen
+plotshape(technicalEntry and isGAAPProfit, title="ENTRY (Profit)", style=shape.labelup, location=location.belowbar, color=color.green, text="ENTRY", textcolor=color.white, size=size.small)
 plotshape(trendWarning, title="WARNUNG", style=shape.labeldown, location=location.abovebar, color=color.red, text="WARNUNG", textcolor=color.white, size=size.small)
 
-// --- PREDICTIVE DASHBOARD ---
-var table fundTable = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+// --- ULTIMATIVE DASHBOARD ---
+var table masterTable = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 if barstate.islast
     color wColor = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
     color eColor = entryProb > 70 ? color.green : (entryProb > 40 ? color.orange : color.red)
+    color rsColor = isRSStrong ? color.green : color.red
 
-    table.cell(fundTable, 0, 0, "TREND", text_color=color.white)
-    table.cell(fundTable, 1, 0, ma50Rising ? "BULLISCH" : "BÄRISCH", bgcolor=ma50Rising ? color.green : color.red)
+    // Zeile 0: Trend
+    table.cell(masterTable, 0, 0, "TREND", text_color=color.white)
+    table.cell(masterTable, 1, 0, ma50Rising ? "BULLISCH" : "BÄRISCH", bgcolor=ma50Rising ? color.green : color.red, text_color=color.white)
     
-    table.cell(fundTable, 0, 1, "VOLUMEN", text_color=color.white)
-    table.cell(fundTable, 1, 1, volStatus, bgcolor=volColor)
-
-    table.cell(fundTable, 0, 2, "PROB. WARNUNG (5d)", text_color=color.white)
-    table.cell(fundTable, 1, 2, str.tostring(warnProb, "#.##") + "%", bgcolor=wColor)
-
-    table.cell(fundTable, 0, 3, "PROB. ENTRY (5d)", text_color=color.white)
-    table.cell(fundTable, 1, 3, str.tostring(entryProb, "#.##") + "%", bgcolor=eColor)
+    // Zeile 1: Volumen
+    table.cell(masterTable, 0, 1, "VOLUMEN", text_color=color.white)
+    table.cell(masterTable, 1, 1, volStatus, bgcolor=volColor, text_color=color.white)
     
-    table.cell(fundTable, 0, 4, "ACTION", text_color=color.white)
-    table.cell(fundTable, 1, 4, close > ma50 ? "KAUFEN / HOLD" : "BEOBACHTEN", bgcolor=close > ma50 ? color.green : color.orange)
+    // Zeile 2: GAAP Profit
+    table.cell(masterTable, 0, 2, "GAAP PROFIT", text_color=color.white)
+    table.cell(masterTable, 1, 2, isGAAPProfit ? "YES (" + str.tostring(netIncome/1000000, "#.#") + "M)" : "NO", bgcolor=isGAAPProfit ? color.green : color.red, text_color=color.white)
 
-    table.cell(fundTable, 0, 5, "INFO", text_color=color.white)
-    table.cell(fundTable, 1, 5, "V7 Full-Spectrum", text_color=color.gray)
+    // Zeile 3: RS vs SPY
+    table.cell(masterTable, 0, 3, "RS vs " + compSymbol, text_color=color.white)
+    table.cell(masterTable, 1, 3, isRSStrong ? "STÄRKER" : "SCHWÄCHER", bgcolor=rsColor, text_color=color.white)
+
+    // Zeile 4: Wahrscheinlichkeiten
+    table.cell(masterTable, 0, 4, "PROB. WARNUNG (5d)", text_color=color.white)
+    table.cell(masterTable, 1, 4, str.tostring(warnProb, "#.##") + "%", bgcolor=wColor, text_color=color.white)
+
+    table.cell(masterTable, 0, 5, "PROB. ENTRY (5d)", text_color=color.white)
+    table.cell(masterTable, 1, 5, str.tostring(entryProb, "#.##") + "%", bgcolor=eColor, text_color=color.white)
+    
+    // Zeile 6: Action
+    string actionText = (close < ma200) ? "FINGER WEG!" : (close > ma50 ? "KAUFEN / HOLD" : "BEOBACHTEN")
+    color actionColor = (close < ma200) ? color.purple : (close > ma50 ? color.green : color.orange)
+    table.cell(masterTable, 0, 6, "ACTION", text_color=color.white)
+    table.cell(masterTable, 1, 6, actionText, bgcolor=actionColor, text_color=color.white)
+
+    table.cell(masterTable, 0, 7, "VERSION", text_color=color.white)
+    table.cell(masterTable, 1, 7, "V8 Ultimate Master", text_color=color.gray)
