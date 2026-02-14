@@ -17,18 +17,16 @@ int rsiLen           = input.int(14,    "RSI Length",                    minval=
 float rsiOB          = input.float(75,  "RSI Overbought Level",         minval=60, maxval=95)
 int atrLen           = input.int(14,    "ATR Length",                    minval=5)
 bool showForecast    = input.bool(true, "Show P/FCF Price Forecast Lines")
-float sharesInput    = input.float(0, "Shares Outstanding (B) — 0=auto", minval=0, tooltip="Enter shares in billions (e.g. 7.43 for MSFT). Set 0 to auto-detect via TOTAL_REVENUE/Revenue-per-share proxy.")
+float sharesInput    = input.float(0, "Shares Outstanding (B) — 0=auto", minval=0, tooltip="Enter shares in billions. Set 0 to auto-detect.")
 
 // ============================================================================
 // DATA REQUESTS (Global Scope)
 // ============================================================================
-// --- Fundamental: Net Income ---
 float netIncomeFQ = request.financial(syminfo.tickerid, "NET_INCOME", "FQ")
 float netIncomeFY = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
 float netIncome   = not na(netIncomeFQ) ? netIncomeFQ : netIncomeFY
 bool isGAAPProfit = nz(netIncome) > 0
 
-// --- Fundamental: FCF & Revenue via 12M timeframe for true yearly offsets ---
 float fcfAnnual = request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
 
 fcfYearly() => request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
@@ -37,28 +35,20 @@ revYearly() => request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
 [fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y] = request.security(syminfo.tickerid, "12M", [fcfYearly(), fcfYearly()[1], fcfYearly()[2], fcfYearly()[3], fcfYearly()[4]])
 [revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revYearly(), revYearly()[1], revYearly()[2], revYearly()[3], revYearly()[4]])
 
-// --- Shares Outstanding: EPS-based derivation ---
-// shares = Net Income / EPS → avoids unreliable request.financial fields
 float epsFY  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
 float niFY   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
-
-// Derive shares: if user provided manual input, use that; otherwise derive from NI/EPS
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
 float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : sharesOutAuto
 
-// --- Comparison data for Relative Strength ---
 float compClose = request.security(compSymbol, timeframe.period, close)
 
-// --- Weekly trend confirmation ---
 float weeklyMA50  = request.security(syminfo.tickerid, "W", ta.sma(close, 10))
 float weeklyMA200 = request.security(syminfo.tickerid, "W", ta.sma(close, 40))
 bool weeklyBullish = not na(weeklyMA50) and not na(weeklyMA200) and weeklyMA50 > weeklyMA200
 
 // ============================================================================
-// FUNDAMENTAL ANALYSIS (with fallback logic)
+// FUNDAMENTAL ANALYSIS
 // ============================================================================
-
-// --- Helper: CAGR with cascading fallback ---
 growthCAGR(float current, float y1, float y2, float y3, float y4) =>
     float cagr = na
     string period = "N/A"
@@ -85,7 +75,6 @@ growthCAGR(float current, float y1, float y2, float y3, float y4) =>
                 period := "DETERIORATING"
     [cagr, period]
 
-// --- Revenue Growth ---
 [revCAGR, revPeriod] = growthCAGR(revY0_y, revY1_y, revY2_y, revY3_y, revY4_y)
 bool revValid = not na(revCAGR)
 string revTrend = "NO DATA"
@@ -101,7 +90,6 @@ if revValid
         revTrend := "STABLE " + revPeriod + " (" + str.tostring(revCAGR, "#.#") + "%)"
         revColor := color.blue
 
-// --- FCF Growth ---
 [fcfCAGR, fcfPeriod] = growthCAGR(fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y)
 bool fcfValid = not na(fcfCAGR)
 string fcfTrend = "NO DATA"
@@ -118,85 +106,51 @@ if fcfValid
         fcfColor := color.blue
 
 // ============================================================================
+// SMART FCF GROWTH RATE (Investment Phase Detection)
+// ============================================================================
+// Detect divergence: revenue growing but FCF declining = investment phase
+// In that case, dampen the FCF decline to avoid unrealistic projections
+
+bool isInvestmentPhase = revValid and fcfValid and revCAGR > 5 and fcfCAGR < -10
+bool isDeteriorating   = revValid and fcfValid and revCAGR < -5 and fcfCAGR < -10
+
+float smartFCFGrowth = 0.0
+string fcfAdjLabel   = ""
+
+if isInvestmentPhase
+    // Revenue growing, FCF declining → investment phase
+    // Use average of revenue growth and FCF decline (dampened)
+    // Example: Rev +12%, FCF -50% → adjusted = (-50 + 12) / 2 = -19%
+    // But floor at 0% — assume FCF at least stabilizes
+    smartFCFGrowth := math.max(0, (fcfCAGR + revCAGR) / 2.0)
+    fcfAdjLabel := "INVEST ADJ"
+else if fcfValid
+    smartFCFGrowth := fcfCAGR
+    fcfAdjLabel := ""
+else
+    smartFCFGrowth := 0.0
+    fcfAdjLabel := ""
+
+// Cap at ±50%
+float fcfGrowthRate = math.max(-0.5, math.min(smartFCFGrowth / 100.0, 0.5))
+
+// ============================================================================
 // P/FCF PRICE FORECAST
 // ============================================================================
-
-// --- FCF per share for each year ---
 bool hasShares = not na(sharesOut) and sharesOut > 0
 float fcfPS0 = hasShares and not na(fcfY0_y) and fcfY0_y > 0 ? fcfY0_y / sharesOut : na
-float fcfPS1 = hasShares and not na(fcfY1_y) and fcfY1_y > 0 ? fcfY1_y / sharesOut : na
-float fcfPS2 = hasShares and not na(fcfY2_y) and fcfY2_y > 0 ? fcfY2_y / sharesOut : na
-float fcfPS3 = hasShares and not na(fcfY3_y) and fcfY3_y > 0 ? fcfY3_y / sharesOut : na
-float fcfPS4 = hasShares and not na(fcfY4_y) and fcfY4_y > 0 ? fcfY4_y / sharesOut : na
 
-// --- Current P/FCF ---
 float currentPFCF = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
+bool isHighMultiple = not na(currentPFCF) and currentPFCF > 60
 
-// --- Historical P/FCF from yearly snapshots ---
-// Since we can't get historical prices per year easily, we use a proxy:
-// Assume current P/FCF as Y0, and derive past P/FCFs from FCF growth ratios
-// P/FCF_Yn = (Price_Yn × Shares) / FCF_Yn — but we don't have Price_Yn
-// Alternative: use the current P/FCF and the FCF ratios to establish a range
-// 
-// Better approach: just use the FCF/share values to define the valuation band
-// and apply a reasonable P/FCF multiple range from the current ratio
-float pfcfCurrent = currentPFCF
+bool forecastValid = not na(currentPFCF) and not na(fcfPS0) and fcfPS0 > 0
 
-// --- Build P/FCF range: use sector-aware bands ---
-// Conservative: use 50% of current multiple (mean reversion bear case)
-// Optimistic: use 150% of current multiple (expansion bull case)  
-// But better: use the FCF per share growth to compute implied multiples
-// at different price levels from history
-
-// Most robust: Use current P/FCF with ±1 standard deviation band
-// from how P/FCF would have looked at different FCF levels
-float pfcfMin = na
-float pfcfMax = na
-float pfcfAvg = na
-
-// Calculate what P/FCF would be at current price for each year's FCF
-// This shows us the range the market has implicitly valued
-float ipfcf0 = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
-float ipfcf1 = not na(fcfPS1) and fcfPS1 > 0 ? close / fcfPS1 : na
-float ipfcf2 = not na(fcfPS2) and fcfPS2 > 0 ? close / fcfPS2 : na
-float ipfcf3 = not na(fcfPS3) and fcfPS3 > 0 ? close / fcfPS3 : na
-float ipfcf4 = not na(fcfPS4) and fcfPS4 > 0 ? close / fcfPS4 : na
-
-// Aggregate stats
-addPFCF(float val, float currentSum, float currentMin, float currentMax, int currentCount) =>
-    float newSum   = currentSum
-    float newMin   = currentMin
-    float newMax   = currentMax
-    int   newCount = currentCount
-    if not na(val) and val > 0
-        newSum   := currentSum + val
-        newMin   := na(currentMin) ? val : math.min(currentMin, val)
-        newMax   := na(currentMax) ? val : math.max(currentMax, val)
-        newCount := currentCount + 1
-    [newSum, newMin, newMax, newCount]
-
-[s1, mn1, mx1, c1] = addPFCF(ipfcf0, 0.0,  na, na, 0)
-[s2, mn2, mx2, c2] = addPFCF(ipfcf1, s1, mn1, mx1, c1)
-[s3, mn3, mx3, c3] = addPFCF(ipfcf2, s2, mn2, mx2, c2)
-[s4, mn4, mx4, c4] = addPFCF(ipfcf3, s3, mn3, mx3, c3)
-[s5, mn5, mx5, c5] = addPFCF(ipfcf4, s4, mn4, mx4, c4)
-
-pfcfAvg := c5 > 0 ? s5 / c5 : na
-pfcfMin := mn5
-pfcfMax := mx5
-
-bool forecastValid = not na(pfcfAvg) and not na(fcfCAGR) and not na(fcfPS0) and fcfPS0 > 0
-
-// --- Project FCF per share 1 year forward ---
-float fcfGrowthRate  = fcfValid ? fcfCAGR / 100.0 : 0.0
 float fcfPerShareFwd = forecastValid ? fcfPS0 * (1 + fcfGrowthRate) : na
 
-// --- Price Targets ---
-float priceBear = forecastValid ? fcfPerShareFwd * pfcfMin : na
-float priceFair = forecastValid ? fcfPerShareFwd * pfcfAvg : na
-float priceBull = forecastValid ? fcfPerShareFwd * pfcfMax : na
+float priceBear = forecastValid ? fcfPerShareFwd * currentPFCF * 0.70 : na
+float priceFair = forecastValid ? fcfPerShareFwd * currentPFCF * 1.00 : na
+float priceBull = forecastValid ? fcfPerShareFwd * currentPFCF * 1.30 : na
 
-// --- Upside/Downside % ---
 float upsideBear = forecastValid and close > 0 ? ((priceBear / close) - 1) * 100 : na
 float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100 : na
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
@@ -228,7 +182,6 @@ float lowestLow   = ta.lowest(low, baseLookback)
 float atrVal      = ta.atr(atrLen)
 float rsiVal      = ta.rsi(close, rsiLen)
 
-// --- ADX Calculation ---
 float trueRange  = ta.tr(true)
 float dmPlus     = math.max(high - high[1], 0)
 float dmMinus    = math.max(low[1] - low, 0)
@@ -244,7 +197,6 @@ float dx         = diSum > 0 ? math.abs(diPlus - diMinus) / diSum * 100 : 0.0
 float adxVal     = ta.rma(dx, adxLen)
 bool isTrending  = adxVal > adxThreshold
 
-// --- Relative Strength (RS) Analysis ---
 float prevClose     = close[20]
 float prevCompClose = compClose[20]
 bool rsDataValid    = not na(compClose) and not na(prevCompClose) and not na(prevClose) and prevClose > 0 and prevCompClose > 0
@@ -252,7 +204,6 @@ float symbolPerf    = rsDataValid ? (close - prevClose) / prevClose : 0.0
 float compPerf      = rsDataValid ? (compClose - prevCompClose) / prevCompClose : 0.0
 bool isRSStrong     = rsDataValid and symbolPerf > compPerf
 
-// --- Probability Forecast (Next 5 Days) ---
 float logReturn       = math.log(close / nz(close[1], close))
 float logStdDev       = ta.stdev(logReturn, probLookback)
 float expectedMovePct = logStdDev * math.sqrt(5) * 100
@@ -264,7 +215,6 @@ float warnProb   = distToMA50 > 0 ? math.min(100, (expectedMove / distToMA50) * 
 float distToHigh = highestHigh - close
 float entryProb  = distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : (na(distToHigh) ? na : 0.0)
 
-// --- Smart Volume Logic ---
 bool ma50Rising  = ma50 > ma50[5]
 float maxVol5    = ta.highest(volume, 5)
 bool isHighVol   = maxVol5 > avgVol * volThreshold
@@ -278,25 +228,21 @@ if isHighVol
         volStatus := "DISTRIBUTION"
         volColor := color.red
 
-// --- Distance to MAs in % ---
 float distToMA50Pct  = ma50 > 0  ? ((close - ma50) / ma50) * 100   : na
 float distToMA200Pct = ma200 > 0 ? ((close - ma200) / ma200) * 100 : na
 
-// --- MA50 color: position relative to MA200 ---
 color ma50Color = ma50 > ma200 ? color.blue : color.orange
 
-// --- Suggested Stop Loss ---
 float stopATR   = close - (atrVal * 2)
 float stopBase  = lowestLow
 float stopLevel = math.max(stopATR, stopBase)
 
-// --- Risk/Reward Ratio ---
 float riskPerShare   = close - stopLevel
 float rewardPerShare = highestHigh - close
 float rrRatio        = riskPerShare > 0 ? rewardPerShare / riskPerShare : na
 
 // ============================================================================
-// SIGNALS (with cooldown & filters)
+// SIGNALS
 // ============================================================================
 bool rawEntry   = ta.crossover(close, highestHigh[1]) and volume > avgVol * 1.2 and close > ma50 and close > ma200
 bool rawWarning = ta.crossunder(close, ma50) and volume > avgVol * 1.1
@@ -328,7 +274,6 @@ plot(ma50, color=ma50Rising ? ma50Color : color.red, linewidth=2, title="50 SMA"
 plot(ma200, color=color.white, linewidth=3, title="200 SMA")
 plot(stopLevel, color=color.new(color.red, 60), linewidth=1, style=plot.style_cross, title="Suggested Stop")
 
-// --- P/FCF Forecast Lines ---
 plot(showForecast and forecastValid ? priceBull : na, color=color.new(color.green, 40), linewidth=1, style=plot.style_line, title="Bull Target (1Y)")
 plot(showForecast and forecastValid ? priceFair : na, color=color.new(color.yellow, 40), linewidth=2, style=plot.style_line, title="Fair Value (1Y)")
 plot(showForecast and forecastValid ? priceBear : na, color=color.new(color.red, 40),   linewidth=1, style=plot.style_line, title="Bear Target (1Y)")
@@ -339,7 +284,7 @@ plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=locati
 // ============================================================================
 // DASHBOARD
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 21, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 22, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -348,7 +293,7 @@ if barstate.islast
 
     int row = 0
 
-    // --- SECTION: Fundamentals ---
+    // --- Fundamentals ---
     table.cell(masterTable, 0, row, "FUND. GRADE", text_color=color.white)
     table.cell(masterTable, 1, row, fundGrade + " (" + str.tostring(fundScore) + "/5)", bgcolor=fundGradeColor, text_color=color.white)
     row += 1
@@ -370,17 +315,35 @@ if barstate.islast
     table.cell(masterTable, 1, row, fcfTrend, bgcolor=fcfColor, text_color=color.white)
     row += 1
 
-    // --- SECTION: P/FCF Valuation ---
-    color pfcfNowColor = not na(currentPFCF) and not na(pfcfAvg) ? (currentPFCF < pfcfAvg ? color.green : color.orange) : color.gray
+    // --- Investment Phase Indicator ---
+    if isInvestmentPhase
+        table.cell(masterTable, 0, row, "⚠ PHASE", text_color=color.white)
+        table.cell(masterTable, 1, row, "INVESTING (Rev↑ FCF↓)", bgcolor=color.orange, text_color=color.white)
+        row += 1
+    else if isDeteriorating
+        table.cell(masterTable, 0, row, "⚠ PHASE", text_color=color.white)
+        table.cell(masterTable, 1, row, "DETERIORATING", bgcolor=color.red, text_color=color.white)
+        row += 1
+
+    // --- Valuation ---
+    string pfcfLabel = not na(currentPFCF) ? str.tostring(currentPFCF, "#.#") + "x" : "N/A"
+    if isHighMultiple
+        pfcfLabel += " ⚠ HIGH"
+    color pfcfNowColor = not na(currentPFCF) ? (currentPFCF < 30 ? color.green : (currentPFCF < 60 ? color.blue : color.orange)) : color.gray
     table.cell(masterTable, 0, row, "P/FCF (NOW)", text_color=color.white)
-    table.cell(masterTable, 1, row, not na(currentPFCF) ? str.tostring(currentPFCF, "#.#") + "x" : "N/A", bgcolor=pfcfNowColor, text_color=color.white)
+    table.cell(masterTable, 1, row, pfcfLabel, bgcolor=pfcfNowColor, text_color=color.white)
     row += 1
 
-    table.cell(masterTable, 0, row, "P/FCF (RANGE)", text_color=color.white)
-    table.cell(masterTable, 1, row, not na(pfcfAvg) ? str.tostring(pfcfMin, "#.#") + " | " + str.tostring(pfcfAvg, "#.#") + " | " + str.tostring(pfcfMax, "#.#") : "N/A", bgcolor=color.gray, text_color=color.white)
+    // --- Forecast basis ---
+    string growthLabel = (fcfGrowthRate >= 0 ? "+" : "") + str.tostring(fcfGrowthRate * 100, "#.#") + "%"
+    if fcfAdjLabel != ""
+        growthLabel += " (" + fcfAdjLabel + ")"
+    string basisText = "FCF: " + growthLabel + " | ±30% MULT"
+    table.cell(masterTable, 0, row, "FORECAST BASIS", text_color=color.white)
+    table.cell(masterTable, 1, row, forecastValid ? basisText : "N/A", bgcolor=isInvestmentPhase ? color.orange : color.gray, text_color=color.white)
     row += 1
 
-    // --- SECTION: 1Y Price Forecast ---
+    // --- 1Y Price Forecast ---
     color bearColor = not na(upsideBear) ? (upsideBear > 0 ? color.green : color.red) : color.gray
     color fairColor = not na(upsideFair) ? (upsideFair > 0 ? color.green : color.red) : color.gray
     color bullColor = not na(upsideBull) ? (upsideBull > 0 ? color.green : color.red) : color.gray
@@ -397,7 +360,7 @@ if barstate.islast
     table.cell(masterTable, 1, row, forecastValid ? str.tostring(priceBull, "#.##") + " (" + str.tostring(upsideBull, "#.#") + "%)" : "N/A", bgcolor=bullColor, text_color=color.white)
     row += 1
 
-    // --- SECTION: Technicals ---
+    // --- Technicals ---
     table.cell(masterTable, 0, row, "TREND", text_color=color.white)
     table.cell(masterTable, 1, row, ma50Rising ? "BULLISH" : "BEARISH", bgcolor=ma50Rising ? color.green : color.red, text_color=color.white)
     row += 1
@@ -425,7 +388,7 @@ if barstate.islast
     table.cell(masterTable, 1, row, rsDataValid ? (isRSStrong ? "STRONGER" : "WEAKER") : "NO DATA", bgcolor=rsDataValid ? rsColor : color.gray, text_color=color.white)
     row += 1
 
-    // --- SECTION: Probabilities ---
+    // --- Probabilities ---
     table.cell(masterTable, 0, row, "PROB. WARNING (5d)", text_color=color.white)
     table.cell(masterTable, 1, row, str.tostring(warnProb, "#.##") + "%", bgcolor=wColor, text_color=color.white)
     row += 1
@@ -434,7 +397,7 @@ if barstate.islast
     table.cell(masterTable, 1, row, str.tostring(entryProb, "#.##") + "%", bgcolor=eColor, text_color=color.white)
     row += 1
 
-    // --- SECTION: Risk ---
+    // --- Risk ---
     color d50Color = distToMA50Pct > 0 ? color.green : color.red
     table.cell(masterTable, 0, row, "DIST. TO MA50", text_color=color.white)
     table.cell(masterTable, 1, row, str.tostring(distToMA50Pct, "#.##") + "%", bgcolor=d50Color, text_color=color.white)
