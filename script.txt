@@ -21,35 +21,36 @@ float sharesInput    = input.float(0, "Shares Outstanding (B) — 0=auto", minva
 int rotationLookback = input.int(60, "Sector Rotation Lookback (Days)", minval=20, maxval=120)
 
 // ============================================================================
-// DATA REQUESTS (Global Scope)
+// DATA REQUESTS (Global Scope — all request.*() calls at top level)
 // ============================================================================
-float netIncomeFQ = request.financial(syminfo.tickerid, "NET_INCOME", "FQ")
-float netIncomeFY = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
-float netIncome   = not na(netIncomeFQ) ? netIncomeFQ : netIncomeFY
+
+// --- Core financial data (deduplicated) ---
+float niFQ  = request.financial(syminfo.tickerid, "NET_INCOME", "FQ")
+float niFY  = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
+float netIncome = not na(niFQ) ? niFQ : niFY
 
 float fcfAnnual = request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
-
-fcfYearly() => request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FY")
-revYearly() => request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
-niYearly()  => request.financial(syminfo.tickerid, "NET_INCOME", "FY")
-
-[fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y] = request.security(syminfo.tickerid, "12M", [fcfYearly(), fcfYearly()[1], fcfYearly()[2], fcfYearly()[3], fcfYearly()[4]])
-[revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revYearly(), revYearly()[1], revYearly()[2], revYearly()[3], revYearly()[4]])
-[niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niYearly(), niYearly()[1]])
-
-float epsFY   = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
-float niFY    = request.financial(syminfo.tickerid, "NET_INCOME", "FY")
-float epsFY1  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
-float niFY1   = request.financial(syminfo.tickerid, "NET_INCOME", "FY")[1]
-
+float epsFY     = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
 float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
+float revFY     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
 
+// --- Historical financial data via request.security (global scope, no wrapper functions) ---
+float epsFY1 = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
+float niFY1  = niFY[1]
+
+[fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y] = request.security(syminfo.tickerid, "12M", [fcfAnnual, fcfAnnual[1], fcfAnnual[2], fcfAnnual[3], fcfAnnual[4]])
+[revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revFY, revFY[1], revFY[2], revFY[3], revFY[4]])
+[niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niFY, niFY[1]])
+
+// --- Shares outstanding calculation ---
 float sharesOutAuto = not na(niFY) and not na(epsFY) and epsFY != 0 ? math.abs(niFY / epsFY) : na
 float sharesOutPrev = not na(niFY1) and not na(epsFY1) and epsFY1 != 0 ? math.abs(niFY1 / epsFY1) : na
 float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : (not na(sharesOutAuto) ? sharesOutAuto : sharesOutPrev)
 
+// --- Comparison symbol ---
 float compClose = request.security(compSymbol, timeframe.period, close)
 
+// --- Weekly trend ---
 float weeklyMA50  = request.security(syminfo.tickerid, "W", ta.sma(close, 10))
 float weeklyMA200 = request.security(syminfo.tickerid, "W", ta.sma(close, 40))
 bool weeklyBullish = not na(weeklyMA50) and not na(weeklyMA200) and weeklyMA50 > weeklyMA200
@@ -57,12 +58,12 @@ bool weeklyBullish = not na(weeklyMA50) and not na(weeklyMA200) and weeklyMA50 >
 // ============================================================================
 // SECTOR ROTATION MODULE — ETF Data Requests
 // ============================================================================
-float techClose    = request.security("AMEX:XLK",  timeframe.period, close)
-float finClose     = request.security("AMEX:XLF",  timeframe.period, close)
-float healthClose  = request.security("AMEX:XLV",  timeframe.period, close)
-float energyClose  = request.security("AMEX:XLE",  timeframe.period, close)
-float staplesClose = request.security("AMEX:XLP",  timeframe.period, close)
-float utilClose    = request.security("AMEX:XLU",  timeframe.period, close)
+float techClose    = request.security("AMEX:XLK", timeframe.period, close)
+float finClose     = request.security("AMEX:XLF", timeframe.period, close)
+float healthClose  = request.security("AMEX:XLV", timeframe.period, close)
+float energyClose  = request.security("AMEX:XLE", timeframe.period, close)
+float staplesClose = request.security("AMEX:XLP", timeframe.period, close)
+float utilClose    = request.security("AMEX:XLU", timeframe.period, close)
 
 // ============================================================================
 // FUNDAMENTAL ANALYSIS
@@ -129,7 +130,7 @@ if fcfValid
         fcfTrend := "STABLE " + fcfPeriod + " (" + str.tostring(fcfCAGR, "#.#") + "%)"
         fcfColor := color.blue
 
-float rev1YCAGR = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
+float rev1YCAGR  = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
 float fcf1YChange = not na(fcfY0_y) and not na(fcfY1_y) and fcfY1_y > 0 ? ((fcfY0_y / fcfY1_y) - 1) * 100 : na
 
 // ============================================================================
@@ -190,25 +191,8 @@ bool warnGrowthStall = not isRestructured and revValid and not na(rev1YCAGR) and
 float debtToFCF = not na(totalDebt) and not na(fcfY0_y) and fcfY0_y > 0 ? totalDebt / fcfY0_y : na
 bool warnDebtHeavy = not na(debtToFCF) and debtToFCF > 10
 
-int warnCount = 0
-if warnDilution
-    warnCount += 1
-if warnFCFNeg
-    warnCount += 1
-if warnMarginSqueeze
-    warnCount += 1
-if warnRevDecline
-    warnCount += 1
-if warnEPSLoss
-    warnCount += 1
-if warnFCFDeteriorate
-    warnCount += 1
-if warnOvervalued
-    warnCount += 1
-if warnGrowthStall
-    warnCount += 1
-if warnDebtHeavy
-    warnCount += 1
+// --- Compact warning count ---
+int warnCount = (warnDilution ? 1 : 0) + (warnFCFNeg ? 1 : 0) + (warnMarginSqueeze ? 1 : 0) + (warnRevDecline ? 1 : 0) + (warnEPSLoss ? 1 : 0) + (warnFCFDeteriorate ? 1 : 0) + (warnOvervalued ? 1 : 0) + (warnGrowthStall ? 1 : 0) + (warnDebtHeavy ? 1 : 0)
 
 color warnCountColor = warnCount == 0 ? color.green : (warnCount <= 2 ? color.orange : color.red)
 
@@ -284,25 +268,14 @@ float upsideBear = forecastValid and close > 0 ? ((priceBear / close) - 1) * 100
 float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100 : na
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
 
-// Fund Grade
-int fundScore = 0
-if isProfitable
-    fundScore += 1
-if not na(fcfAnnual) and fcfAnnual > 0
-    fundScore += 1
-if fcfValid and fcfCAGR > 5
-    fundScore += 1
-if revValid and revCAGR > 5
-    fundScore += 1
-if not na(epsFY) and epsFY > 0
-    fundScore += 1
+// --- Fundamental Grade ---
+int fundScore = (isProfitable ? 1 : 0) + (not na(fcfAnnual) and fcfAnnual > 0 ? 1 : 0) + (fcfValid and fcfCAGR > 5 ? 1 : 0) + (revValid and revCAGR > 5 ? 1 : 0) + (not na(epsFY) and epsFY > 0 ? 1 : 0)
 
 string fundGrade = fundScore >= 5 ? "A+" : fundScore >= 4 ? "A" : fundScore >= 3 ? "B" : fundScore >= 2 ? "C" : fundScore >= 1 ? "D" : "F"
 color fundGradeColor = fundScore >= 4 ? color.green : fundScore >= 3 ? color.blue : fundScore >= 2 ? color.orange : color.red
 
 // ============================================================================
 // SECTOR ROTATION — Dual Timeframe Detection
-// LONG (60d) = established phase | SHORT (20d) = emerging phase
 // ============================================================================
 
 // --- Phase scoring function ---
@@ -341,58 +314,64 @@ scorePhases(float techP, float finP, float healthP, float energyP, float staples
         defense += 1
     [early, mid, late, defense]
 
+// --- Sector-phase matching helper ---
+isSectorInPhase(string sector, string phase) =>
+    bool result = false
+    if phase == "EARLY RECOVERY"
+        result := sector == "Finance" or sector == "Financial" or sector == "Real Estate" or sector == "Consumer Cyclical" or sector == "Consumer Durables" or sector == "Retail Trade" or sector == "Transportation"
+    else if phase == "MID EXPANSION"
+        result := sector == "Technology" or sector == "Technology Services" or sector == "Electronic Technology" or sector == "Industrials" or sector == "Industrial Services" or sector == "Producer Manufacturing" or sector == "Communication Services" or sector == "Communications" or sector == "Transportation"
+    else if phase == "LATE EXPANSION"
+        result := sector == "Energy" or sector == "Energy Minerals" or sector == "Basic Materials" or sector == "Non-Energy Minerals" or sector == "Process Industries" or sector == "Industrials" or sector == "Industrial Services" or sector == "Producer Manufacturing" or sector == "Transportation"
+    else if phase == "DEFENSIVE"
+        result := sector == "Healthcare" or sector == "Health Technology" or sector == "Health Services" or sector == "Consumer Defensive" or sector == "Consumer Non-Durables" or sector == "Consumer Services" or sector == "Utilities" or sector == "Distribution Services"
+    result
+
+// --- Performance calculation helper ---
+calcPerf(float currentVal, float pastVal) =>
+    not na(currentVal) and not na(pastVal) and pastVal > 0 ? (currentVal / pastVal - 1) * 100 : na
+
 // --- LONG lookback performance ---
-float techPerfL    = not na(techClose) and not na(techClose[rotationLookback]) and techClose[rotationLookback] > 0 ? (techClose / techClose[rotationLookback] - 1) * 100 : na
-float finPerfL     = not na(finClose) and not na(finClose[rotationLookback]) and finClose[rotationLookback] > 0 ? (finClose / finClose[rotationLookback] - 1) * 100 : na
-float healthPerfL  = not na(healthClose) and not na(healthClose[rotationLookback]) and healthClose[rotationLookback] > 0 ? (healthClose / healthClose[rotationLookback] - 1) * 100 : na
-float energyPerfL  = not na(energyClose) and not na(energyClose[rotationLookback]) and energyClose[rotationLookback] > 0 ? (energyClose / energyClose[rotationLookback] - 1) * 100 : na
-float staplesPerfL = not na(staplesClose) and not na(staplesClose[rotationLookback]) and staplesClose[rotationLookback] > 0 ? (staplesClose / staplesClose[rotationLookback] - 1) * 100 : na
-float utilPerfL    = not na(utilClose) and not na(utilClose[rotationLookback]) and utilClose[rotationLookback] > 0 ? (utilClose / utilClose[rotationLookback] - 1) * 100 : na
+float techPerfL    = calcPerf(techClose, techClose[rotationLookback])
+float finPerfL     = calcPerf(finClose, finClose[rotationLookback])
+float healthPerfL  = calcPerf(healthClose, healthClose[rotationLookback])
+float energyPerfL  = calcPerf(energyClose, energyClose[rotationLookback])
+float staplesPerfL = calcPerf(staplesClose, staplesClose[rotationLookback])
+float utilPerfL    = calcPerf(utilClose, utilClose[rotationLookback])
 
 bool rotDataValid = not na(techPerfL) and not na(finPerfL) and not na(healthPerfL) and not na(energyPerfL) and not na(staplesPerfL) and not na(utilPerfL)
 
 // --- SHORT lookback performance (20 days = fast detection) ---
 int shortLookback = 20
-float techPerfS    = not na(techClose) and not na(techClose[shortLookback]) and techClose[shortLookback] > 0 ? (techClose / techClose[shortLookback] - 1) * 100 : na
-float finPerfS     = not na(finClose) and not na(finClose[shortLookback]) and finClose[shortLookback] > 0 ? (finClose / finClose[shortLookback] - 1) * 100 : na
-float healthPerfS  = not na(healthClose) and not na(healthClose[shortLookback]) and healthClose[shortLookback] > 0 ? (healthClose / healthClose[shortLookback] - 1) * 100 : na
-float energyPerfS  = not na(energyClose) and not na(energyClose[shortLookback]) and energyClose[shortLookback] > 0 ? (energyClose / energyClose[shortLookback] - 1) * 100 : na
-float staplesPerfS = not na(staplesClose) and not na(staplesClose[shortLookback]) and staplesClose[shortLookback] > 0 ? (staplesClose / staplesClose[shortLookback] - 1) * 100 : na
-float utilPerfS    = not na(utilClose) and not na(utilClose[shortLookback]) and utilClose[shortLookback] > 0 ? (utilClose / utilClose[shortLookback] - 1) * 100 : na
+float techPerfS    = calcPerf(techClose, techClose[shortLookback])
+float finPerfS     = calcPerf(finClose, finClose[shortLookback])
+float healthPerfS  = calcPerf(healthClose, healthClose[shortLookback])
+float energyPerfS  = calcPerf(energyClose, energyClose[shortLookback])
+float staplesPerfS = calcPerf(staplesClose, staplesClose[shortLookback])
+float utilPerfS    = calcPerf(utilClose, utilClose[shortLookback])
 
 bool rotShortValid = not na(techPerfS) and not na(finPerfS) and not na(healthPerfS) and not na(energyPerfS) and not na(staplesPerfS) and not na(utilPerfS)
 
-// --- Score LONG timeframe ---
+// --- Score both timeframes ---
 [earlyScoreL, midScoreL, lateScoreL, defenseScoreL] = scorePhases(techPerfL, finPerfL, healthPerfL, energyPerfL, staplesPerfL, utilPerfL)
-
-// --- Score SHORT timeframe ---
 [earlyScoreS, midScoreS, lateScoreS, defenseScoreS] = scorePhases(techPerfS, finPerfS, healthPerfS, energyPerfS, staplesPerfS, utilPerfS)
 
-// --- Determine LONG phase ---
-float maxScoreL = math.max(math.max(earlyScoreL, midScoreL), math.max(lateScoreL, defenseScoreL))
-string longPhase = "NO DATA"
-if rotDataValid
-    if maxScoreL == midScoreL and midScoreL > 0
-        longPhase := "MID EXPANSION"
-    else if maxScoreL == earlyScoreL and earlyScoreL > 0
-        longPhase := "EARLY RECOVERY"
-    else if maxScoreL == lateScoreL and lateScoreL > 0
-        longPhase := "LATE EXPANSION"
-    else if maxScoreL == defenseScoreL and defenseScoreL > 0
-        longPhase := "DEFENSIVE"
+// --- Determine phase from scores ---
+determinePhase(float earlyS, float midS, float lateS, float defS) =>
+    float maxS = math.max(math.max(earlyS, midS), math.max(lateS, defS))
+    string phase = "NO DATA"
+    if maxS == midS and midS > 0
+        phase := "MID EXPANSION"
+    else if maxS == earlyS and earlyS > 0
+        phase := "EARLY RECOVERY"
+    else if maxS == lateS and lateS > 0
+        phase := "LATE EXPANSION"
+    else if maxS == defS and defS > 0
+        phase := "DEFENSIVE"
+    phase
 
-// --- Determine SHORT phase ---
-float maxScoreS = math.max(math.max(earlyScoreS, midScoreS), math.max(lateScoreS, defenseScoreS))
-string shortPhase = "NO DATA"
-if rotShortValid
-    if maxScoreS == midScoreS and midScoreS > 0
-        shortPhase := "MID EXPANSION"
-    else if maxScoreS == earlyScoreS and earlyScoreS > 0
-        shortPhase := "EARLY RECOVERY"
-    else if maxScoreS == lateScoreS and lateScoreS > 0
-        shortPhase := "LATE EXPANSION"
-    else if maxScoreS == defenseScoreS and defenseScoreS > 0
-        shortPhase := "DEFENSIVE"
+string longPhase  = rotDataValid  ? determinePhase(earlyScoreL, midScoreL, lateScoreL, defenseScoreL) : "NO DATA"
+string shortPhase = rotShortValid ? determinePhase(earlyScoreS, midScoreS, lateScoreS, defenseScoreS) : "NO DATA"
 
 // --- Transition detection ---
 bool isTransitioning = rotDataValid and rotShortValid and longPhase != shortPhase and shortPhase != "NO DATA"
@@ -431,29 +410,12 @@ if rotDataValid
         transitionLabel := " (was " + longPhase + ")"
 
 // ============================================================================
-// SECTOR FIT — uses active phase (short = faster detection)
+// SECTOR FIT — uses helper function (deduplicated)
 // ============================================================================
 string stockSector = syminfo.sector
 
-bool isFavoredSector = false
-if activePhase == "EARLY RECOVERY"
-    isFavoredSector := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade" or stockSector == "Transportation"
-else if activePhase == "MID EXPANSION"
-    isFavoredSector := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications" or stockSector == "Transportation"
-else if activePhase == "LATE EXPANSION"
-    isFavoredSector := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Transportation"
-else if activePhase == "DEFENSIVE"
-    isFavoredSector := stockSector == "Healthcare" or stockSector == "Health Technology" or stockSector == "Health Services" or stockSector == "Consumer Defensive" or stockSector == "Consumer Non-Durables" or stockSector == "Consumer Services" or stockSector == "Utilities" or stockSector == "Distribution Services"
-
-bool isNextFavored = false
-if nextPhase == "EARLY RECOVERY"
-    isNextFavored := stockSector == "Finance" or stockSector == "Financial" or stockSector == "Real Estate" or stockSector == "Consumer Cyclical" or stockSector == "Consumer Durables" or stockSector == "Retail Trade" or stockSector == "Transportation"
-else if nextPhase == "MID EXPANSION"
-    isNextFavored := stockSector == "Technology" or stockSector == "Technology Services" or stockSector == "Electronic Technology" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Communication Services" or stockSector == "Communications" or stockSector == "Transportation"
-else if nextPhase == "LATE EXPANSION"
-    isNextFavored := stockSector == "Energy" or stockSector == "Energy Minerals" or stockSector == "Basic Materials" or stockSector == "Non-Energy Minerals" or stockSector == "Process Industries" or stockSector == "Industrials" or stockSector == "Industrial Services" or stockSector == "Producer Manufacturing" or stockSector == "Transportation"
-else if nextPhase == "DEFENSIVE"
-    isNextFavored := stockSector == "Healthcare" or stockSector == "Health Technology" or stockSector == "Health Services" or stockSector == "Consumer Defensive" or stockSector == "Consumer Non-Durables" or stockSector == "Consumer Services" or stockSector == "Utilities" or stockSector == "Distribution Services"
+bool isFavoredSector = isSectorInPhase(stockSector, activePhase)
+bool isNextFavored   = isSectorInPhase(stockSector, nextPhase)
 
 string sectorFitLabel = "NO DATA"
 color sectorFitColor = color.gray
@@ -485,6 +447,7 @@ float lowestLow   = ta.lowest(low, baseLookback)
 float atrVal      = ta.atr(atrLen)
 float rsiVal      = ta.rsi(close, rsiLen)
 
+// --- ADX calculation ---
 float trueRange  = ta.tr(true)
 float dmPlus     = math.max(high - high[1], 0)
 float dmMinus    = math.max(low[1] - low, 0)
@@ -500,6 +463,7 @@ float dx         = diSum > 0 ? math.abs(diPlus - diMinus) / diSum * 100 : 0.0
 float adxVal     = ta.rma(dx, adxLen)
 bool isTrending  = adxVal > adxThreshold
 
+// --- Relative Strength ---
 float prevClose     = close[20]
 float prevCompClose = compClose[20]
 bool rsDataValid    = not na(compClose) and not na(prevCompClose) and not na(prevClose) and prevClose > 0 and prevCompClose > 0
@@ -507,16 +471,18 @@ float symbolPerf    = rsDataValid ? (close - prevClose) / prevClose : 0.0
 float compPerf      = rsDataValid ? (compClose - prevCompClose) / prevCompClose : 0.0
 bool isRSStrong     = rsDataValid and symbolPerf > compPerf
 
-float logReturn       = math.log(close / nz(close[1], close))
-float logStdDev       = ta.stdev(logReturn, probLookback)
+// --- Volatility / probability (with zero-price guard) ---
+float prevC          = nz(close[1], close)
+float logReturn      = prevC > 0 and close > 0 ? math.log(close / prevC) : 0.0
+float logStdDev      = ta.stdev(logReturn, probLookback)
 float expectedMovePct = logStdDev * math.sqrt(5) * 100
 float expectedMove    = close * logStdDev * math.sqrt(5)
 
 float distToMA50 = close - ma50
-float warnProb   = distToMA50 > 0 ? math.min(100, (expectedMove / distToMA50) * 50) : (na(distToMA50) ? na : 100.0)
+float warnProb   = na(distToMA50) ? na : (distToMA50 > 0 ? math.min(100, (expectedMove / distToMA50) * 50) : 100.0)
 
 float distToHigh = highestHigh - close
-float entryProb  = distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : (na(distToHigh) ? na : 0.0)
+float entryProb  = na(distToHigh) ? na : (distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : 0.0)
 
 bool ma50Rising  = ma50 > ma50[5]
 float maxVol5    = ta.highest(volume, 5)
@@ -585,9 +551,9 @@ plotshape(entrySignal,   title="ENTRY",   style=shape.labelup,   location=locati
 plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=location.abovebar, color=color.red,   text="WARNING", textcolor=color.white, size=size.small)
 
 // ============================================================================
-// DASHBOARD — 27 rows
+// DASHBOARD — 30 rows (headroom for conditional rows)
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 27, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 30, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -731,14 +697,14 @@ if barstate.islast
     table.cell(masterTable, 1, row, str.tostring(entryProb, "#.##") + "%", bgcolor=eColor, text_color=color.white)
     row += 1
 
-    color d50Color = distToMA50Pct > 0 ? color.green : color.red
+    color d50Color = not na(distToMA50Pct) ? (distToMA50Pct > 0 ? color.green : color.red) : color.gray
     table.cell(masterTable, 0, row, "DIST. TO MA50", text_color=color.white)
-    table.cell(masterTable, 1, row, str.tostring(distToMA50Pct, "#.##") + "%", bgcolor=d50Color, text_color=color.white)
+    table.cell(masterTable, 1, row, not na(distToMA50Pct) ? str.tostring(distToMA50Pct, "#.##") + "%" : "N/A", bgcolor=d50Color, text_color=color.white)
     row += 1
 
-    color d200Color = distToMA200Pct > 0 ? color.green : color.red
+    color d200Color = not na(distToMA200Pct) ? (distToMA200Pct > 0 ? color.green : color.red) : color.gray
     table.cell(masterTable, 0, row, "DIST. TO MA200", text_color=color.white)
-    table.cell(masterTable, 1, row, str.tostring(distToMA200Pct, "#.##") + "%", bgcolor=d200Color, text_color=color.white)
+    table.cell(masterTable, 1, row, not na(distToMA200Pct) ? str.tostring(distToMA200Pct, "#.##") + "%" : "N/A", bgcolor=d200Color, text_color=color.white)
     row += 1
 
     table.cell(masterTable, 0, row, "STOP / R:R", text_color=color.white)
