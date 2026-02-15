@@ -1,78 +1,32 @@
-🚀 Palantir Explosion Strategy: Full-Spectrum Intelligence (V7)
-1. Über das Tool
+Das **Pinetree Outbreak Script** ist ein umfassendes Analyse-Werkzeug für die Plattform TradingView. Sein Hauptziel ist es, Anlegern eine fundierte **Entscheidungshilfe** zu bieten, indem es verschiedene Analyseansätze in einem einzigen Dashboard vereint.
 
-Dieses TradingView-Tool (Pine Script V7) ist ein techno-fundamentaler Analyse-Indikator. Es wurde entwickelt, um das „Palantir-Muster“ zu identifizieren: Aktien, die nach einer langen Bodenbildung durch fundamentale Wenden (GAAP-Profitabilität) und institutionelle Käufe massiv ausbrechen.
+Hier sind die Hauptziele für Anfänger einfach erklärt:
 
-Das Besondere an V7 ist die Kombination aus historischer Signalanalyse und statistischer Zukunftsprognose.
+### 1. Die Kombination von Fundamentaldaten und Charttechnik
+Das wichtigste Ziel des Scripts ist es, nicht nur den Aktienkurs zu betrachten, sondern auch die **wirtschaftliche Gesundheit** des Unternehmens. Ein technisches Kaufsignal (z. B. ein Kursanstieg) wird nur dann als gültiges Einstiegssignal gewertet, wenn auch die Fundamentaldaten (wie Gewinn und Cashflow) stimmen.
 
-2. Die Kern-Philosophie (Das Palantir-Prinzip)
+### 2. Ein 9-Punkte-Warnsystem für fundamentale Risiken
+Das Script überwacht in Echtzeit neun kritische Warnzeichen, um den Nutzer vor riskanten Investitionen zu schützen. Dazu gehören unter anderem:
+*   **Verwässerung der Aktien:** Wenn das Unternehmen zu viele neue Aktien ausgibt.
+*   **Hohe Verschuldung:** Wenn die Schulden im Vergleich zum Cashflow zu hoch sind.
+*   **Sinkende Margen:** Wenn der Umsatz zwar steigt, der Gewinn aber nicht mithalten kann.
+Basierend auf diesen und weiteren Kriterien vergibt das Script eine **"Fundamental-Note" (Grade) von A+ bis F**, damit du die Qualität einer Aktie sofort einschätzen kannst.
 
-Um eine Wertsteigerung wie bei Palantir (PLTR) treffsicher vorherzusagen, kombiniert das Tool drei Faktoren:
+### 3. Identifizierung von optimalen Einstiegspunkten (Breakouts)
+Das Script nutzt die bekannte **CAN SLIM-Strategie**, um nach "Breakouts" zu suchen. Ein Einstiegssignal wird erst generiert, wenn mehrere Bedingungen gleichzeitig erfüllt sind, wie zum Beispiel:
+*   Der Kurs bricht über ein altes Hoch aus.
+*   Das Handelsvolumen ist deutlich erhöht (was auf Käufe durch große Institutionen hindeutet).
+*   Der Trend ist sowohl kurz- als auch langfristig positiv.
 
-Die Base (Grauer Hintergrund): Eine Phase geringer Volatilität, in der Institutionen heimlich Positionen aufbauen.
+### 4. Zukunftsprognosen und Wahrscheinlichkeiten
+Anstatt nur in die Vergangenheit zu schauen, versucht das Script, die Zukunft mathematisch zu modellieren:
+*   **Kurs-Prognose:** Es berechnet auf Basis des freien Cashflows (FCF) drei mögliche Kursziele für das nächste Jahr (Bären-, Basis- und Bullen-Szenario).
+*   **Wahrscheinlichkeits-Rechner:** Es schätzt ein, wie wahrscheinlich es ist, dass innerhalb der nächsten 5 Tage ein Kaufsignal oder eine Warnung auftritt.
 
-Der Pivot (Echter Gewinn): Das Tool prüft im Hintergrund, ob das Unternehmen GAAP-profitabel ist (wichtig für Großfonds).
+### 5. Marktkalender und Sektor-Rotation
+Ein weiteres Ziel ist es, zu erkennen, in welcher Phase sich die Wirtschaft gerade befindet (z. B. Erholung oder Rezession). Das Script zeigt an, ob der Sektor der gewählten Aktie (z. B. Technologie oder Energie) im aktuellen Marktumfeld gerade **begünstigt ("favored")** ist oder ob das "kluge Geld" (Institutionen) bereits in andere Sektoren abwandert.
 
-Die Zündung (Volumen): Ein Ausbruch muss durch massiv erhöhtes Volumen bestätigt werden.
+### Wichtiger Hinweis für Anfänger
+Das Script ist **kein Handelsroboter**. Es führt keine automatischen Käufe oder Verkäufe aus. Es dient dazu, alle relevanten Informationen – von der Bilanz bis zum Chart – übersichtlich darzustellen, damit du als Anleger eine informiertere Entscheidung treffen kannst.
 
-3. Dashboard-Analyse (Die Schaltzentrale)
-
-Das Dashboard oben rechts gibt dir in Echtzeit eine Einschätzung der Lage:
-
-Feld	Status / Farbe	Bedeutung
-TREND	BULLISCH (Grün)	Die 50-Tage-Linie steigt. Das Momentum ist auf deiner Seite.
-	BÄRISCH (Rot)	Der kurzfristige Trend ist gebrochen. Vorsicht!
-VOLUMEN	AKKUMULATION (Grün)	Hohes Volumen bei steigenden Kursen. Die "Big Boys" kaufen ein.
-	ABVERKAUF (Rot)	Hohes Volumen bei fallenden Kursen. Panik-Verkäufe/Institutioneller Ausstieg.
-	STABIL (Blau)	Normales Handelsvolumen. Kein außergewöhnlicher Druck.
-PROB. ENTRY (5d)	Prozentwert	Statistische Wahrscheinlichkeit für einen Ausbruch in den nächsten 5 Tagen.
-PROB. WARNUNG (5d)	Prozentwert	Statistische Wahrscheinlichkeit für einen Absturz unter den Support in den nächsten 5 Tagen.
-ACTION	KAUFEN / HOLD	Alle Ampeln stehen auf Grün. Trend und Volumen passen.
-	BEOBACHTEN	Die Aktie ist in einer Korrektur oder Seitwärtsphase.
-4. Visuelle Signale im Chart
-
-Grünes "ENTRY" Label: Ein historisch verifizierter Einstiegspunkt. Hier passten Ausbruch, Volumen und Trend zusammen.
-
-Rotes "WARNUNG" Label: Ein historisches Signal für einen Trendbruch. Hier wurde das Momentum unter hohem Volumen verloren.
-
-Graue Zone (Hintergrund): Die Akkumulationsphase. Hier bildet die Aktie eine "Base".
-
-Blaue/Rote Linie (SMA 50): Deine Haupt-Trendlinie. Blau = Steigend, Rot = Fallend.
-
-Weiße Linie (SMA 200): Der langfristige Anker. Wir suchen "Explosionen" nur oberhalb dieser Linie.
-
-5. Die Prognose-Mathematik (Predictive Logic)
-
-Das Tool nutzt die Standardabweichung der letzten 20 Tage, um die „Expected Move“ (erwartete Bewegung) für die nächsten 5 Handelstage zu berechnen.
-
-Ist der Abstand zum Widerstand kleiner als die erwartete Bewegung, steigt die Prob. Entry.
-
-Ist der Abstand zum Support (SMA 50) kleiner als die erwartete Bewegung, steigt die Prob. Warning.
-
-6. Strategie-Guide für den "Super-Donnerstag" (26. Feb 2026)
-
-Das Tool ist dein Kompass für die Earnings von ACMR und CPRX:
-
-Vorbereitung: Prüfe, ob die Aktie in einer grauen Zone (Base) konsolidiert.
-
-Der Tag der Zahlen: Beobachte das Feld VOLUMEN.
-
-Springt es auf AKKUMULATION (Grün)? -> Institutionen feiern die Zahlen.
-
-Springt es auf ABVERKAUF (Rot)? -> Sofortiger Ausstieg oder Finger weg.
-
-Die Bestätigung: Warte auf das grüne ENTRY Label. Wenn die Prob. Entry auf über 70% steigt, ist der statistische Vorteil massiv auf deiner Seite.
-
-Der Roll-Over: Wenn dein Dashboard bei einer Position (z.B. SAP oder Micron) "BÄRISCH" und "ABVERKAUF" zeigt, nutze das Tool, um einen neuen Wert mit "BULLISCH" und "AKKUMULATION" (z.B. ANET oder ONTO) zu finden.
-
-7. Installation
-
-Code im Pine Editor von TradingView einfügen.
-
-Auf Speichern klicken.
-
-"Add to Chart" auswählen.
-
-In den Einstellungen des Indikators können Volumenschwellen und Zeiträume individuell angepasst werden.
-
-Disclaimer: Dieses Tool dient der Datenanalyse und stellt keine Anlageberatung dar. Gewinne der Vergangenheit sind keine Garantie für die Zukunft.
+**Zusammenfassend:** Das Ziel ist es, die Spreu vom Weizen zu trennen, indem nur Aktien mit starken Fundamentaldaten und positivem charttechnischem Schwung (Momentum) gefiltert werden.
