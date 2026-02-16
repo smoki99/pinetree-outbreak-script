@@ -1,5 +1,3 @@
-Here's the English translation of your `readme.md` file:
-
 ### Pinetree Outbreak Script
 
 The **Pinetree Outbreak Script** is a comprehensive analysis tool for the TradingView platform. Its main goal is to provide investors with well-founded **decision-making support** by combining various analysis approaches into a single dashboard.
