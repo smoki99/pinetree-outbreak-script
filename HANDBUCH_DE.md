@@ -22,6 +22,8 @@ Die meisten Trader verlieren Geld, weil sie nur auf **eine** Seite der Medaille 
 
 Der **Ultimate Master Guard V11** ist ein **Hybrid**. Er kombiniert Bilanzdaten (Umsatz, Cashflow, Gewinn) mit Preisdaten (Trend, Volumen). Er sagt Ihnen nicht nur, *dass* sich der Preis bewegt, sondern *ob die Bewegung gerechtfertigt ist*.
 
+Unter Youtube ist nun auch ein Einführungsvideo zu finden [Youtube](https://youtu.be/s_XDYK4jKhY)
+
 ---
 
 ## 2. Die zwei Trader-Typen: Wer sind Sie?
