@@ -1,5 +1,7 @@
 Das **Pinetree Outbreak Script** ist ein umfassendes Analyse-Werkzeug für die Plattform TradingView. Sein Hauptziel ist es, Anlegern eine fundierte **Entscheidungshilfe** zu bieten, indem es verschiedene Analyseansätze in einem einzigen Dashboard vereint.
 
+Unter Youtube ist nun auch ein Einführungsvideo zu finden [Youtube](https://youtu.be/s_XDYK4jKhY)
+
 Hier sind die Hauptziele für Anfänger einfach erklärt:
 
 ### 1. Die Kombination von Fundamentaldaten und Charttechnik
