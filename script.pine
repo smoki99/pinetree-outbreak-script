@@ -1,5 +1,5 @@
 //@version=6
-indicator("Palantir Strategy: Ultimate Master Guard V13", overlay=true, max_labels_count=500)
+indicator("Palantir Strategy: Ultimate Master Guard V14", overlay=true, max_labels_count=500)
 
 // ============================================================================
 // INPUTS
@@ -16,12 +16,18 @@ float adxThreshold   = input.float(20,  "ADX Trend Threshold",          minval=1
 int rsiLen           = input.int(14,    "RSI Length",                    minval=5)
 float rsiOB          = input.float(75,  "RSI Overbought Level",         minval=60, maxval=95)
 int atrLen           = input.int(14,    "ATR Length",                    minval=5)
-bool showForecast    = input.bool(true, "Show P/FCF Price Forecast Lines")
+bool showForecast    = input.bool(true, "Show Price Forecast Lines")
 float sharesInput    = input.float(0, "Shares Outstanding (B) — 0=auto", minval=0, tooltip="Enter shares in billions. Set 0 to auto-detect.")
 int rotationLookback = input.int(60, "Sector Rotation Lookback (Days)", minval=20, maxval=120)
 bool useQuarterlyFCF = input.bool(true, "Use Quarterly FCF Annualization (Cyclicals)", tooltip="When the most recent quarter's annualized FCF significantly exceeds trailing annual FCF, use the quarterly run-rate instead. Better for cyclical stocks in upswings.")
 float cyclicalThreshold = input.float(50, "Cyclical Boom Threshold (Rev CAGR %)", minval=30, maxval=100, tooltip="Revenue or FCF CAGR above this level flags the stock as in a cyclical boom phase.")
 bool isLumpy         = input.bool(false, "Lumpy Cash Flow Override", tooltip="Check this for companies with massive but infrequent product deliveries to disable QTRx4.")
+
+// ============================================================================
+// SECTOR DETECTION (Dynamic Valuation Toggle)
+// ============================================================================
+string stockSector = syminfo.sector
+bool isBank = stockSector == "Finance" or stockSector == "Financial" or stockSector == "Financials"
 
 // ============================================================================
 // DATA REQUESTS (Global Scope)
@@ -46,6 +52,11 @@ float revFY     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
 float revTTM    = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "TTM")
 float revFQ     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ")
 
+// --- BANK UPGRADE: Total Equity for Book Value ---
+float equityFQ  = request.financial(syminfo.tickerid, "TOTAL_EQUITY", "FQ")
+float equityFY  = request.financial(syminfo.tickerid, "TOTAL_EQUITY", "FY")
+float curEquity = not na(equityFQ) ? equityFQ : equityFY
+
 // --- Historical financial data via request.security ---
 float epsFY1 = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")[1]
 float niFY1  = niFY[1]
@@ -53,6 +64,7 @@ float niFY1  = niFY[1]
 [fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y] = request.security(syminfo.tickerid, "12M", [fcfFY, fcfFY[1], fcfFY[2], fcfFY[3], fcfFY[4]])
 [revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revFY, revFY[1], revFY[2], revFY[3], revFY[4]])
 [niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niFY, niFY[1]])
+[eqY0_y, eqY1_y, eqY2_y, eqY3_y, eqY4_y]      = request.security(syminfo.tickerid, "12M", [equityFY, equityFY[1], equityFY[2], equityFY[3], equityFY[4]])
 
 // --- Official Shares Outstanding Fetch & Fallbacks ---
 float sharesTV      = request.financial(syminfo.tickerid, "TOTAL_SHARES_OUTSTANDING", "FQ")
@@ -62,7 +74,7 @@ float sharesOut     = sharesInput > 0 ? sharesInput * 1000000000 : (not na(share
 bool hasShares      = not na(sharesOut) and sharesOut > 0
 
 // --- Comparison symbol & Trend ---
-float compClose = request.security(compSymbol, timeframe.period, close)
+float compClose   = request.security(compSymbol, timeframe.period, close)
 float weeklyMA50  = request.security(syminfo.tickerid, "W", ta.sma(close, 10))
 float weeklyMA200 = request.security(syminfo.tickerid, "W", ta.sma(close, 40))
 bool weeklyBullish = not na(weeklyMA50) and not na(weeklyMA200) and weeklyMA50 > weeklyMA200
@@ -82,20 +94,15 @@ float utilClose    = request.security("AMEX:XLU", timeframe.period, close)
 // ============================================================================
 float fcfQuarterlyAnnualized = not na(fcfQuarterly) ? fcfQuarterly * 4.0 : na
 
-// Calculate test multiples to prevent massive Q4 cash-collection spikes (like ASML) from hallucinating cheap valuations
 float test_fcfPS_TTM = hasShares and fcfAnnual > 0 ? fcfAnnual / sharesOut : na
 float test_fcfPS_QTR = hasShares and fcfQuarterlyAnnualized > 0 ? fcfQuarterlyAnnualized / sharesOut : na
 
 float test_pfcfTTM = not na(test_fcfPS_TTM) ? close / test_fcfPS_TTM : na
 float test_pfcfQTR = not na(test_fcfPS_QTR) ? close / test_fcfPS_QTR : na
 
-// VALUATION SHOCK: If QTRx4 causes the multiple to suddenly drop by >50% AND the resulting P/FCF is < 25x, it is mathematically a seasonal spike, NOT a cyclical boom.
 bool isValuationShock = not na(test_pfcfTTM) and not na(test_pfcfQTR) and (test_pfcfQTR < test_pfcfTTM * 0.5) and (test_pfcfQTR < 25.0)
-
-// Hardcode known ultra-lumpy/seasonal mega-caps as a backup
 bool isAutoLumpy = syminfo.ticker == "ASML" or syminfo.ticker == "BA"
 
-// Only use QTRx4 if it exceeds 1.75x TTM, is NOT lumpy, and passes the shock filter
 bool fcfRunRateHigher = useQuarterlyFCF and not isLumpy and not isAutoLumpy and not isValuationShock and not na(fcfQuarterlyAnnualized) and not na(fcfAnnual) and fcfAnnual > 0 and fcfQuarterlyAnnualized > fcfAnnual * 1.75
 bool fcfRunRateUsed = fcfRunRateHigher
 
@@ -103,7 +110,7 @@ float fcfEffective = fcfRunRateUsed ? fcfQuarterlyAnnualized : fcfAnnual
 string fcfSourceLabel = fcfRunRateUsed ? "QTR×4" : (not na(fcfTTM) ? "TTM" : "FY")
 
 // ============================================================================
-// FUNDAMENTAL ANALYSIS
+// FUNDAMENTAL ANALYSIS (CAGR & Trends)
 // ============================================================================
 growthCAGR(float current, float y1, float y2, float y3, float y4) =>
     float cagr = na
@@ -152,6 +159,7 @@ if revValid
         revTrend := "STABLE " + revPeriod + " (" + str.tostring(revCAGR, "#.#") + "%)"
         revColor := color.blue
 
+// FCF CAGR
 [fcfCAGR, fcfPeriod] = growthCAGR(fcfY0_y, fcfY1_y, fcfY2_y, fcfY3_y, fcfY4_y)
 bool fcfValid = not na(fcfCAGR)
 string fcfTrend = "NO DATA"
@@ -167,8 +175,25 @@ if fcfValid
         fcfTrend := "STABLE " + fcfPeriod + " (" + str.tostring(fcfCAGR, "#.#") + "%)"
         fcfColor := color.blue
 
-float rev1YCAGR  = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
+// BANK UPGRADE: Equity/Book Value CAGR
+[eqCAGR, eqPeriod] = growthCAGR(eqY0_y, eqY1_y, eqY2_y, eqY3_y, eqY4_y)
+bool eqValid = not na(eqCAGR)
+string eqTrend = "NO DATA"
+color eqColor = color.gray
+if eqValid
+    if eqCAGR > 5
+        eqTrend := "GROWING " + eqPeriod + " (+" + str.tostring(eqCAGR, "#.#") + "%)"
+        eqColor := color.green
+    else if eqCAGR < -5
+        eqTrend := "DECLINING " + eqPeriod + " (" + str.tostring(eqCAGR, "#.#") + "%)"
+        eqColor := color.red
+    else
+        eqTrend := "STABLE " + eqPeriod + " (" + str.tostring(eqCAGR, "#.#") + "%)"
+        eqColor := color.blue
+
+float rev1YCAGR   = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
 float fcf1YChange = not na(fcfY0_y) and not na(fcfY1_y) and fcfY1_y > 0 ? ((fcfY0_y / fcfY1_y) - 1) * 100 : na
+float eq1YChange  = not na(eqY0_y) and not na(eqY1_y) and eqY1_y > 0 ? ((eqY0_y / eqY1_y) - 1) * 100 : na
 
 // --- Cyclical & Restructuring ---
 bool isCyclicalBoom = false
@@ -181,7 +206,7 @@ if revValid and revCAGR > cyclicalThreshold
     isCyclicalBoom := true
     cyclicalLabel := "🔥 CYCLICAL BOOM (Rev CAGR " + str.tostring(revCAGR, "#.#") + "%)"
     cyclicalColor := color.yellow
-else if fcfValid and fcfCAGR > cyclicalThreshold
+else if not isBank and fcfValid and fcfCAGR > cyclicalThreshold
     isCyclicalBoom := true
     cyclicalLabel := "🔥 CYCLICAL BOOM (FCF CAGR " + str.tostring(fcfCAGR, "#.#") + "%)"
     cyclicalColor := color.yellow
@@ -205,42 +230,49 @@ bool isGAAPProfit = nz(netIncome) > 0
 bool isCashProfitable = (not isGAAPProfit) and (not na(fcfY0_y) and fcfY0_y > 0) and (not na(epsFY) and epsFY > 0)
 bool isProfitable = isGAAPProfit or isCashProfitable
 
-string profitLabel = isGAAPProfit ? "YES (" + str.tostring(netIncome / 1000000, "#.#") + "M)" : isCashProfitable ? "CASH PROF. (" + str.tostring(fcfY0_y / 1000000, "#.#") + "M FCF)" : "NO"
-color profitColor = isGAAPProfit ? color.green : isCashProfitable ? color.blue : color.red
+string profitLabel = isGAAPProfit ? "YES (" + str.tostring(netIncome / 1000000, "#.#") + "M)" : (isBank ? "NO" : (isCashProfitable ? "CASH PROF. (" + str.tostring(fcfY0_y / 1000000, "#.#") + "M FCF)" : "NO"))
+color profitColor = isGAAPProfit ? color.green : (isBank ? color.red : (isCashProfitable ? color.blue : color.red))
 
 // ============================================================================
-// 9 FUNDAMENTAL WARNING SIGNS & FORECASTING
+// DYNAMIC VALUATION ENGINE (FCF vs P/B) & 9 WARNING SIGNS
 // ============================================================================
 float dilutionPct = not na(sharesOut) and not na(sharesOutPrev) and sharesOutPrev > 0 ? ((sharesOut / sharesOutPrev) - 1) * 100 : na
 bool warnDilution = not na(dilutionPct) and dilutionPct > 5
-bool warnFCFNeg = not na(fcfY0_y) and fcfY0_y <= 0
+
 float niGrowth  = not na(niY0_y) and not na(niY1_y) and niY1_y > 0 and niY0_y > 0 ? ((niY0_y / niY1_y) - 1) * 100 : na
 float revGrowth = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_y / revY1_y) - 1) * 100 : na
 bool warnMarginSqueeze = not isRestructured and not na(niGrowth) and not na(revGrowth) and revGrowth > 0 and niGrowth < revGrowth and (revGrowth - niGrowth) > 5
 bool warnRevDecline = not isRestructured and revValid and revCAGR < -5
 bool warnEPSLoss = not na(epsFY) and epsFY < 0
 bool isInvestmentPhase = revValid and fcfValid and revCAGR > 5 and fcfCAGR < -10
-bool isDeteriorating   = not isRestructured and revValid and fcfValid and revCAGR < -5 and fcfCAGR < -10
-bool warnFCFDeteriorate = not isRestructured and not na(fcf1YChange) and fcf1YChange < -20 and not isInvestmentPhase
+bool warnGrowthStall = not isRestructured and revValid and not na(rev1YCAGR) and revCAGR > 10 and rev1YCAGR < 5 and (revCAGR - rev1YCAGR) > 10
 
-bool isFCFNegative = not na(fcfEffective) and fcfEffective <= 0
+// Valuations
 float fcfPS0 = hasShares and not na(fcfEffective) and fcfEffective > 0 ? fcfEffective / sharesOut : na
 float currentPFCF = not na(fcfPS0) and fcfPS0 > 0 ? close / fcfPS0 : na
-bool isHighMultiple = not na(currentPFCF) and currentPFCF > 60
+float eqPS0 = hasShares and not na(curEquity) and curEquity > 0 ? curEquity / sharesOut : na
+float currentPB = not na(eqPS0) and eqPS0 > 0 ? close / eqPS0 : na
 
-float pfcfWarnThreshold = isCyclicalBoom and fcfRunRateUsed ? 120.0 : 80.0
-bool warnOvervalued = not na(currentPFCF) and currentPFCF > pfcfWarnThreshold
-bool warnGrowthStall = not isRestructured and revValid and not na(rev1YCAGR) and revCAGR > 10 and rev1YCAGR < 5 and (revCAGR - rev1YCAGR) > 10
+// Dynamic Bank Overrides
+bool warnFCFNeg = isBank ? (curEquity <= 0) : (not na(fcfY0_y) and fcfY0_y <= 0)
+bool warnFCFDeteriorate = isBank ? (not na(eq1YChange) and eq1YChange < -10) : (not isRestructured and not na(fcf1YChange) and fcf1YChange < -20 and not isInvestmentPhase)
+bool isDeteriorating = isBank ? (revValid and eqValid and revCAGR < -5 and eqCAGR < -5) : (not isRestructured and revValid and fcfValid and revCAGR < -5 and fcfCAGR < -10)
+
+float activeMultiple = isBank ? currentPB : currentPFCF
+float valWarnThreshold = isBank ? 3.0 : (isCyclicalBoom and fcfRunRateUsed ? 120.0 : 80.0)
+bool warnOvervalued = not na(activeMultiple) and activeMultiple > valWarnThreshold
+
 float debtToFCF = not na(totalDebt) and not na(fcfEffective) and fcfEffective > 0 ? totalDebt / fcfEffective : na
-bool warnDebtHeavy = not na(debtToFCF) and debtToFCF > 10
+bool warnDebtHeavy = isBank ? false : (not na(debtToFCF) and debtToFCF > 10) // Banks are immune to debt check
 
 int warnCount = (warnDilution ? 1 : 0) + (warnFCFNeg ? 1 : 0) + (warnMarginSqueeze ? 1 : 0) + (warnRevDecline ? 1 : 0) + (warnEPSLoss ? 1 : 0) + (warnFCFDeteriorate ? 1 : 0) + (warnOvervalued ? 1 : 0) + (warnGrowthStall ? 1 : 0) + (warnDebtHeavy ? 1 : 0)
 color warnCountColor = warnCount == 0 ? color.green : (warnCount <= 2 ? color.orange : color.red)
+
 string warnText = ""
 if warnDilution
     warnText += "DILUTION(" + str.tostring(dilutionPct, "#.#") + "%) "
 if warnFCFNeg
-    warnText += "FCF<0 "
+    warnText += isBank ? "EQ<0 " : "FCF<0 "
 if warnMarginSqueeze
     warnText += "MARGIN↓ "
 if warnRevDecline
@@ -248,9 +280,9 @@ if warnRevDecline
 if warnEPSLoss
     warnText += "EPS<0 "
 if warnFCFDeteriorate
-    warnText += "FCF↓↓ "
+    warnText += isBank ? "EQ↓↓ " : "FCF↓↓ "
 if warnOvervalued
-    warnText += "P/FCF>" + str.tostring(pfcfWarnThreshold, "#") + " "
+    warnText += (isBank ? "P/B>" : "P/FCF>") + str.tostring(valWarnThreshold, "#.#") + " "
 if warnGrowthStall
     warnText += "STALL "
 if warnDebtHeavy
@@ -264,6 +296,9 @@ if warnCount == 0 and not isRestructured
 else if warnCount == 0 and isRestructured
     warnText := "📋RESTRUCTURED (data adj.)"
 
+// ============================================================================
+// SMART FORECASTING (Dynamic FCF / Book Value)
+// ============================================================================
 decayGrowth(float rawCAGR) =>
     float adj = rawCAGR
     if rawCAGR > 50
@@ -272,42 +307,52 @@ decayGrowth(float rawCAGR) =>
         adj := 20.0 + (rawCAGR - 20.0) * 0.5
     adj
 
-float smartFCFGrowth = 0.0
-string fcfAdjLabel   = ""
-if isRestructured
-    smartFCFGrowth := 0.0
-    fcfAdjLabel := "RESTRUCTURED"
-else if isCyclicalBoom and fcfValid and fcfCAGR > cyclicalThreshold
-    smartFCFGrowth := decayGrowth(fcfCAGR) * 0.7
-    fcfAdjLabel := "CYCL DECAY"
-else if isInvestmentPhase
-    smartFCFGrowth := math.max(0, (fcfCAGR + revCAGR) / 2.0)
-    fcfAdjLabel := "INVEST ADJ"
-else if fcfValid
-    if fcfCAGR > 20
-        smartFCFGrowth := decayGrowth(fcfCAGR)
-        fcfAdjLabel := "DECAY ADJ"
-    else
-        smartFCFGrowth := fcfCAGR
+float smartGrowth = 0.0
+string forecastAdjLabel = ""
+
+if isBank
+    smartGrowth := eqValid ? eqCAGR : 0.0
+    forecastAdjLabel := "BOOK VAL"
 else
-    smartFCFGrowth := 0.0
+    if isRestructured
+        smartGrowth := 0.0
+        forecastAdjLabel := "RESTRUCTURED"
+    else if isCyclicalBoom and fcfValid and fcfCAGR > cyclicalThreshold
+        smartGrowth := decayGrowth(fcfCAGR) * 0.7
+        forecastAdjLabel := "CYCL DECAY"
+    else if isInvestmentPhase
+        smartGrowth := math.max(0, (fcfCAGR + revCAGR) / 2.0)
+        forecastAdjLabel := "INVEST ADJ"
+    else if fcfValid
+        if fcfCAGR > 20
+            smartGrowth := decayGrowth(fcfCAGR)
+            forecastAdjLabel := "DECAY ADJ"
+        else
+            smartGrowth := fcfCAGR
+    else
+        smartGrowth := 0.0
 
-float fcfGrowthRate = math.max(-0.4, math.min(smartFCFGrowth / 100.0, 0.4))
-bool forecastValid = not na(currentPFCF) and not na(fcfPS0) and fcfPS0 > 0 and not isFCFNegative
-float fcfPerShareFwd = forecastValid ? fcfPS0 * (1 + fcfGrowthRate) : na
-float forecastMultiple = currentPFCF
-if isCyclicalBoom and forecastValid and currentPFCF > 50
-    forecastMultiple := (currentPFCF + 35.0) / 2.0
+float finalGrowthRate = math.max(-0.4, math.min(smartGrowth / 100.0, 0.4))
+bool forecastValid = not na(activeMultiple) and (isBank ? (not na(eqPS0) and eqPS0 > 0) : (not na(fcfPS0) and fcfPS0 > 0 and not warnFCFNeg))
 
-float priceBear = forecastValid ? fcfPerShareFwd * forecastMultiple * 0.70 : na
-float priceFair = forecastValid ? fcfPerShareFwd * forecastMultiple * 1.00 : na
-float priceBull = forecastValid ? fcfPerShareFwd * forecastMultiple * 1.30 : na
+float metricPerShareFwd = forecastValid ? (isBank ? eqPS0 : fcfPS0) * (1 + finalGrowthRate) : na
+float forecastMultiple = activeMultiple
+
+// Normalization logic
+if isBank and forecastValid and activeMultiple > 1.8
+    forecastMultiple := (activeMultiple + 1.2) / 2.0 // Compress super high P/B
+else if not isBank and isCyclicalBoom and forecastValid and activeMultiple > 50
+    forecastMultiple := (activeMultiple + 35.0) / 2.0
+
+float priceBear = forecastValid ? metricPerShareFwd * forecastMultiple * 0.70 : na
+float priceFair = forecastValid ? metricPerShareFwd * forecastMultiple * 1.00 : na
+float priceBull = forecastValid ? metricPerShareFwd * forecastMultiple * 1.30 : na
 
 float upsideBear = forecastValid and close > 0 ? ((priceBear / close) - 1) * 100 : na
 float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100 : na
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
 
-int fundScore = (isProfitable ? 1 : 0) + (not na(fcfEffective) and fcfEffective > 0 ? 1 : 0) + (fcfValid and fcfCAGR > 5 ? 1 : 0) + (revValid and revCAGR > 5 ? 1 : 0) + (not na(epsFY) and epsFY > 0 ? 1 : 0)
+int fundScore = (isProfitable ? 1 : 0) + ((isBank ? (not na(curEquity) and curEquity > 0) : (not na(fcfEffective) and fcfEffective > 0)) ? 1 : 0) + ((isBank ? (eqValid and eqCAGR > 5) : (fcfValid and fcfCAGR > 5)) ? 1 : 0) + (revValid and revCAGR > 5 ? 1 : 0) + (not na(epsFY) and epsFY > 0 ? 1 : 0)
 string fundGrade = fundScore >= 5 ? "A+" : fundScore >= 4 ? "A" : fundScore >= 3 ? "B" : fundScore >= 2 ? "C" : fundScore >= 1 ? "D" : "F"
 color fundGradeColor = fundScore >= 4 ? color.green : fundScore >= 3 ? color.blue : fundScore >= 2 ? color.orange : color.red
 
@@ -433,7 +478,6 @@ if rotDataValid
     if isTransitioning
         transitionLabel := " (was " + longPhase + ")"
 
-string stockSector = syminfo.sector
 bool isFavoredSector = isSectorInPhase(stockSector, activePhase)
 bool isNextFavored   = isSectorInPhase(stockSector, nextPhase)
 string sectorFitLabel = "NO DATA"
@@ -546,9 +590,9 @@ plot(ma50, color=ma50Rising ? ma50Color : color.red, linewidth=2, title="50 SMA"
 plot(ma200, color=color.white, linewidth=3, title="200 SMA")
 plot(stopLevel, color=color.new(color.red, 60), linewidth=1, style=plot.style_cross, title="Suggested Stop")
 
-// plot(showForecast and forecastValid ? priceBull : na, color=color.new(color.green, 40), linewidth=1, style=plot.style_line, title="Bull Target (1Y)")
-// plot(showForecast and forecastValid ? priceFair : na, color=color.new(color.yellow, 40), linewidth=2, style=plot.style_line, title="Fair Value (1Y)")
-// plot(showForecast and forecastValid ? priceBear : na, color=color.new(color.red, 40),   linewidth=1, style=plot.style_line, title="Bear Target (1Y)")
+plot(showForecast and forecastValid ? priceBull : na, color=color.new(color.green, 40), linewidth=1, style=plot.style_line, title="Bull Target (1Y)")
+plot(showForecast and forecastValid ? priceFair : na, color=color.new(color.yellow, 40), linewidth=2, style=plot.style_line, title="Fair Value (1Y)")
+plot(showForecast and forecastValid ? priceBear : na, color=color.new(color.red, 40),   linewidth=1, style=plot.style_line, title="Bear Target (1Y)")
 
 plotshape(entrySignal,   title="ENTRY",   style=shape.labelup,   location=location.belowbar, color=color.green, text="ENTRY",   textcolor=color.white, size=size.small)
 plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=location.abovebar, color=color.red,   text="WARNING", textcolor=color.white, size=size.small)
@@ -586,8 +630,9 @@ if barstate.islast
     table.cell(masterTable, 1, row, revTrendAdj, bgcolor=revColorAdj, text_color=color.white)
     row += 1
 
-    table.cell(masterTable, 0, row, "FCF TREND", text_color=color.white)
-    table.cell(masterTable, 1, row, fcfTrend, bgcolor=fcfColor, text_color=color.white)
+    // DYNAMIC ROW: Equity Trend for Banks vs FCF Trend for others
+    table.cell(masterTable, 0, row, isBank ? "BOOK VALUE TREND" : "FCF TREND", text_color=color.white)
+    table.cell(masterTable, 1, row, isBank ? eqTrend : fcfTrend, bgcolor=isBank ? eqColor : fcfColor, text_color=color.white)
     row += 1
 
     if isRestructured
@@ -607,35 +652,46 @@ if barstate.islast
         table.cell(masterTable, 1, row, "DETERIORATING", bgcolor=color.red, text_color=color.white)
         row += 1
 
-    string pfcfLabel = "N/A"
-    color pfcfNowColor = color.gray
-    if isFCFNegative
-        pfcfLabel := "NEG FCF ✗"
-        pfcfNowColor := color.red
-    else if not na(currentPFCF)
-        pfcfLabel := str.tostring(currentPFCF, "#.#") + "x"
-        if fcfRunRateUsed
-            pfcfLabel += " [" + fcfSourceLabel + "]"
-        if isHighMultiple
-            pfcfLabel += " ⚠ HIGH"
-        pfcfNowColor := currentPFCF < 30 ? color.green : (currentPFCF < 60 ? color.blue : color.orange)
+    // DYNAMIC ROW: Valuation Output (P/B vs P/FCF)
+    string valLabel = "N/A"
+    color valNowColor = color.gray
+    if warnFCFNeg // Remember warnFCFNeg automatically switches to Equity<0 for banks
+        valLabel := isBank ? "NEG EQUITY ✗" : "NEG FCF ✗"
+        valNowColor := color.red
+    else if not na(activeMultiple)
+        valLabel := str.tostring(activeMultiple, "#.#") + "x"
+        if not isBank and fcfRunRateUsed
+            valLabel += " [" + fcfSourceLabel + "]"
+        if warnOvervalued
+            valLabel += " ⚠ HIGH"
+        
+        if isBank
+            valNowColor := activeMultiple <= 1.2 ? color.green : (activeMultiple < 2.0 ? color.blue : color.orange)
+        else
+            valNowColor := activeMultiple < 30 ? color.green : (activeMultiple < 60 ? color.blue : color.orange)
 
-    table.cell(masterTable, 0, row, "P/FCF (NOW)", text_color=color.white)
-    table.cell(masterTable, 1, row, pfcfLabel, bgcolor=pfcfNowColor, text_color=color.white)
+    table.cell(masterTable, 0, row, isBank ? "P/B (NOW)" : "P/FCF (NOW)", text_color=color.white)
+    table.cell(masterTable, 1, row, valLabel, bgcolor=valNowColor, text_color=color.white)
     row += 1
 
     string forecastBasisText = "N/A"
     color basisColor = color.gray
-    if not forecastValid and isFCFNegative
-        forecastBasisText := "NO FORECAST (FCF < 0)"
+    if not forecastValid
+        forecastBasisText := isBank ? "NO FORECAST (EQ < 0)" : "NO FORECAST (FCF < 0)"
         basisColor := color.red
-    else if forecastValid
-        string growthLabel = (fcfGrowthRate >= 0 ? "+" : "") + str.tostring(fcfGrowthRate * 100, "#.#") + "%"
-        if fcfAdjLabel != ""
-            growthLabel += " (" + fcfAdjLabel + ")"
-        string multLabel = isCyclicalBoom and currentPFCF > 50 ? "NORM " + str.tostring(forecastMultiple, "#.#") + "x" : "±30% MULT"
-        forecastBasisText := fcfSourceLabel + ": " + growthLabel + " | " + multLabel
-        basisColor := fcfAdjLabel != "" ? color.orange : color.gray
+    else
+        string growthLabel = (finalGrowthRate >= 0 ? "+" : "") + str.tostring(finalGrowthRate * 100, "#.#") + "%"
+        if forecastAdjLabel != ""
+            growthLabel += " (" + forecastAdjLabel + ")"
+        
+        string multLabel = "±30% MULT"
+        if isBank and activeMultiple > 1.8
+            multLabel := "NORM " + str.tostring(forecastMultiple, "#.#") + "x"
+        else if not isBank and isCyclicalBoom and activeMultiple > 50
+            multLabel := "NORM " + str.tostring(forecastMultiple, "#.#") + "x"
+            
+        forecastBasisText := (isBank ? "EQPS" : fcfSourceLabel) + ": " + growthLabel + " | " + multLabel
+        basisColor := forecastAdjLabel != "" ? color.orange : color.gray
 
     table.cell(masterTable, 0, row, "FORECAST BASIS", text_color=color.white)
     table.cell(masterTable, 1, row, forecastBasisText, bgcolor=basisColor, text_color=color.white, text_size=size.small)
@@ -722,7 +778,7 @@ if barstate.islast
     table.cell(masterTable, 1, row, rrText, bgcolor=rrColor, text_color=color.white)
     row += 1
 
-    if fcfRunRateUsed
+    if not isBank and fcfRunRateUsed
         float fcfFYDisplay = not na(fcfAnnual) ? fcfAnnual / 1000000 : na
         float fcfQDisplay  = not na(fcfQuarterlyAnnualized) ? fcfQuarterlyAnnualized / 1000000 : na
         string fcfSrcText = "BASE: " + (not na(fcfFYDisplay) ? str.tostring(fcfFYDisplay, "#.#") + "M" : "N/A") + " → QTR×4: " + (not na(fcfQDisplay) ? str.tostring(fcfQDisplay, "#.#") + "M" : "N/A")
@@ -730,8 +786,8 @@ if barstate.islast
         table.cell(masterTable, 1, row, fcfSrcText, bgcolor=color.new(color.yellow, 40), text_color=color.white, text_size=size.small)
         row += 1
 
-    if isCyclicalBoom and forecastValid and currentPFCF > 50
-        string normText = "P/FCF: " + str.tostring(currentPFCF, "#.#") + "x → NORM " + str.tostring(forecastMultiple, "#.#") + "x"
+    if (isBank and activeMultiple > 1.8) or (not isBank and isCyclicalBoom and forecastValid and activeMultiple > 50)
+        string normText = (isBank ? "P/B: " : "P/FCF: ") + str.tostring(activeMultiple, "#.#") + "x → NORM " + str.tostring(forecastMultiple, "#.#") + "x"
         table.cell(masterTable, 0, row, "📊 MULT. ADJ", text_color=color.white)
         table.cell(masterTable, 1, row, normText, bgcolor=color.new(color.yellow, 40), text_color=color.white, text_size=size.small)
         row += 1
