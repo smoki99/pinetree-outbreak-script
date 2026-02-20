@@ -1,306 +1,303 @@
-# 📘 The Ultimate Manual: Trading with Master Guard V11
-### From Beginner to Pro: Mastering Fundamental & Technical Market Analysis
+--- START OF FILE Paste February 20, 2026 - 6:11 PM ---
+
+# 📖 Master Guard V15: The Ultimate Handbook
+## Strategic Fundamental Analysis & Algorithmic Market Engineering
+**Version:** Ultimate V15 (2025/2026 Edition)
+
+---
 
 ## 📑 Table of Contents
-
-1.  **Introduction:** Why most traders fail (and how this tool helps)
-2.  **The Two Trader Types:** Are you "Value" or "Momentum"?
-3.  **Chapter 1: Reading the Dashboard** – The Health Check
-4.  **Chapter 2: The V11 Special Logic** – How the Algorithm "Thinks"
-5.  **Chapter 3: Technical Signals** – When do I buy?
-6.  **Chapter 4: Practice Masterclass (10 Case Studies)** – The Core Learning
-7.  **The Pro Checklist**
-8.  **Risk Disclaimer**
-
----
-
-## 1. Introduction: Solving the Problem
-
-Most traders lose money because they only look at **one** side of the coin:
-*   **Pure Technicians:** Buy stocks that are rising, but don't realize the company is on the verge of bankruptcy.
-*   **Pure Fundamentalists:** Buy "cheap" stocks, but don't realize the market has a good reason to sell them (so-called "Value Traps").
-
-The **Ultimate Master Guard V11** is a **Hybrid**. It combines institutional balance sheet data (Revenue, Cash Flow, Earnings) with price action (Trend, Volume). It tells you not just *that* the price is moving, but *if the movement is justified*.
+1. Philosophy: Alpha Factors in Interaction
+2. Sector Rotation: The Core (Macro Overlay)
+3. Valuation Models: Dynamic & Multi-Factorial
+4. Fundamental Metrics & CAGR Logic
+5. Algorithmic Price Forecasting (Smart Forecast)
+6. Technical Market Analysis & Volatility Probability
+7. 9-Point Warning System (Risk Guard)
+8. Dashboard: All Cells in Detail
+9. Risk Management & Position Sizing
+10. Practical Guide & Psychology
 
 ---
 
-## 2. The Two Trader Types: Who Are You?
+## 1. Philosophy: The Symbiosis of Alpha Factors
+Master Guard V15 recognizes: In the short term, stock prices are influenced by psychology (technical analysis); in the long term, they follow fundamental data (cash flows).
 
-Before using the tool, you must know which lens you are wearing.
+V15 is an **expert system** – it simulates an analyst team:
+- **Macro Analyst:** Sector Rotation
+- **Balance Sheet Analyst:** Cash flows & Debt
+- **Mathematician:** Volatility probabilities
+- **Chart Technician:** Trends & Entry points
 
-### 🏛️ Type A: The Value Investor ("The Bargain Hunter")
-You want to buy high-quality companies (Grade A+) when they are currently "on sale" (Crash or Correction).
-*   **Your Signal:** Price is falling, but **FUND. GRADE** remains green and **WARNINGS** are 0.
-*   **Your Risk:** You often catch a "falling knife".
-*   **Example in this guide:** SAP.
-
-### 🚀 Type B: The Momentum Trader ("The Surfer")
-You want to buy stocks that are currently "hot" and breaking out. The valuation matters less to you, as long as the trend is strong.
-*   **Your Signal:** Price breaks out (Entry), **ADX** is high, Sector is "Favored".
-*   **Your Risk:** You buy too expensive and get caught in a crash.
-*   **Example in this guide:** Noble Corp, SK Hynix.
+**Pro Tip:** Think like a professional – risk first, opportunity second.
 
 ---
 
-## Chapter 1: Reading the Dashboard – The Health Check
+## 2. Sector Rotation: The Core (Macro Overlay)
+The most common mistake: Good stock, wrong sector. V15 measures global money flow with the Rotation Module.
 
-In the top right corner of the chart, you see the dashboard. Think of it as your car's dashboard computer.
+### Sector Score (ScorePhases)
+Comparison of six sector ETFs (XLK, XLF, XLV, XLE, XLP, XLU) over:
+1. **Long-term (60 days):** Structural phase
+2. **Short-term (20 days):** Fast rotations (Smart Money)
 
-### 1. FUND. GRADE (The Report Card)
-The system objectively grades every stock from **A+** to **F**.
-*   **A+ / A:** The company is highly profitable, growing, and has healthy cash flow. (Buy candidates).
-*   **B:** Solid, but perhaps not a growth miracle (e.g., Exxon).
-*   **C / D / F:** Stay away! Something is wrong here (Losses, shrinking business).
+**Phase Logic:**
+- **Early Recovery:** Financials beat Tech – Start of the bull market
+- **Mid Expansion:** Tech leads – Highest profits
+- **Late Expansion:** Energy & Materials rise – Cycle end is nearing
+- **Defensive:** Only Utilities & Staples win – Market is risky
 
-### 2. WARNINGS (The Warning Lights)
-The indicator checks for 9 "Deadly Sins" in the background.
-*   **Ideal:** **0/9** ("ALL CLEAR").
-*   **Acceptable:** **1/9** (If you understand the reason).
-*   **Dangerous:** **>2/9**. The statistical risk is too high.
-*   *Examples of warnings:*
-    *   `DILUTION`: The company is printing new shares, diluting your ownership.
-    *   `MARGIN↓`: The company sells more, but earns less per unit.
-    *   `FCF↓↓`: Free Cash Flow is collapsing.
+**Sector Fit:** The tool recognizes the sector of your stock (`syminfo.sector`). Warning if there is a lack of tailwind.
 
-### 3. P/FCF (The Valuation)
-Is the stock expensive or cheap? We use **Price-to-Free-Cash-Flow** because earnings can be manipulated via accounting, but cash flow cannot.
-*   🟢 **Green (< 30x):** Cheap. Value Zone.
-*   🔵 **Blue (30x - 60x):** Fair to Premium. Typical for strong Tech stocks.
-*   🔴 **Red (> 60x):** Expensive. A lot of hope is priced in here.
+**Pro Tip:** Only buy stocks with sector tailwinds.
 
 ---
 
-## Chapter 2: The V11 Special Logic – How the Algorithm "Thinks"
+## 3. Valuation Models: Dynamic & Multi-Factorial
+In the past: Only Free Cash Flow (FCF). Now: Model selection based on the business model.
 
-Version 11 introduces three intelligent functions that beginners often miss, but which are crucial.
+### A. Book Value Model (Banks/Finance)
+Banks: No classic FCF – therefore **P/B** (Price-to-Book ratio). Focus: **Equity CAGR**.
 
-### 1. Smart FCF [QTR×4] ("The Turnaround Detector")
-Sometimes a company (e.g., a gold mine) makes a sudden profit jump, but the annual report doesn't show it yet. The stock looks expensive (old data), but is actually cheap (new profit).
-*   **The Function:** If the last quarter was extremely strong, V11 ignores the last year and multiplies the quarter by 4.
-*   **Detection:** Look for the yellow tag **[QTR×4]** next to P/FCF.
-*   **Meaning:** "Attention, the valuation is much better than it looks at first glance!"
+### B. Earnings Model (Utilities)
+Utilities: Often have negative cash flows due to heavy investments. V15 uses **P/E (Price-to-Earnings)** on TTM earnings.
 
-### 2. Investment Phase ("The Amazon Exception")
-Normally, sinking cash flow is a sell signal. But if a company like Amazon pours billions into new data centers, that is good for the future.
-*   **The Function:** If Revenue rises (+), but Cash Flow falls (-), V11 marks this as **⚠ PHASE: INVESTING**.
-*   **Meaning:** Warnings are suppressed. The system says: "Don't panic, they are just investing."
+### C. Sales Model (Unprofitable Growth)
+Young companies without profit: **P/S (Price-to-Sales)**. Revenue growth as a survival factor.
 
-### 3. Cyclical Boom ("The Cycle Trap")
-Cyclical stocks (Oil, Semiconductors) look cheapest at the peak of the boom, right before they crash.
-*   **The Function:** If growth is explosive (>50%), **🔥 CYCLICAL BOOM** appears.
-*   **Meaning:** The system automatically lowers the future forecast because this boom won't last forever.
+**Pro Tip:** Check the valuation model – does it fit the business model?
 
 ---
 
-## Chapter 3: Technical Signals – When do I buy?
+## 4. Fundamental Metrics & CAGR Logic
+V15 uses a 5-year regression (Y0 to Y4).
 
-### 1. Trend & ADX
-*   **SMA 50 (Blue/Red):** Short-term trend. Price above = Good.
-*   **SMA 200 (White):** Long-term trend. Price below = Bear Market.
-*   **ADX:** Shows the *strength* of the trend (not the direction).
-    *   Under 20: No trend (Choppy). Wait.
-    *   Over 25: Trend established. Trade.
-    *   Over 50: Overheating imminent (Parabolic).
+### CAGR (Compound Annual Growth Rate)
+Intelligent fallback logic:
+- 4 years of data → 4Y CAGR
+- 1 year → YOY comparison
+- **Turnaround:** From loss to profit → marked as "TURNAROUND" (100% growth)
 
-### 2. The MA200 Distance (The Rubber Band)
-This is one of the most important indicators in the script: **DIST. TO MA200**.
-Imagine a rubber band. If you stretch it too far, it snaps back.
-*   **> 30%:** Caution, expensive.
-*   **> 50%:** "Parabolic". Extreme risk of pullback.
-*   **> 100%:** Historic Bubble (Pure gambling).
+### FCF Run-Rate (Cyclical Boost)
+Massive upswing detected if quarterly cash flow (`FQ * 4`) is > 75% above the previous year. V15 then uses the Run-Rate – ideal for cyclical stocks.
 
-### 3. R:R (Risk to Reward)
-At the bottom of the dashboard, find **STOP / R:R**.
-*   It calculates: How much can you win (to the last high), and how much can you lose (to the Stop Loss).
-*   Is the number **Red (< 1:2)**: The trade is mathematically not worth it.
-*   Is the number **Green (> 1:2)**: Good ratio.
+**Pro Tip:** Identify cyclical booms early – use the Run-Rate!
 
 ---
 
-## Chapter 4: Practice Masterclass (10 Case Studies)
+## 5. Algorithmic Price Forecasting (Smart Forecast)
+V15 calculates a **Fair Value** for the next 12 months – no static lines.
 
-Now we apply everything we've learned. We will go through 10 real charts. Read these analyses carefully; this is where you learn "Trader Thinking".
+### Growth Damping (Decay Growth)
+Mathematical damping:
+- Growth > 50% → damped to 35% + remainder
+- Growth > 20% → halved
+This creates realistic price targets.
 
-### Lesson 1: The Perfect "Monopolist" – TSMC
-*Theme: What quality looks like.*
+### Multiple Normalization
+Extremely high multiples (e.g., P/FCF 200x) are regressed to the mean. Forecast is based on a normalized multiple.
 
-![Chart TSMC](pics/Chart_TSM.png)
-
-*   **First Look:**
-    *   **Grade:** A+ (Perfect).
-    *   **Warnings:** 0/9 (Clean).
-    *   **Trend:** Bullish (Price above Blue and White lines).
-*   **The Analysis:**
-    *   The company is a monopoly. Revenue (+21%) and Cash Flow (+37%) are growing strongly.
-    *   The **P/FCF of 54x** seems high (Blue), but is justified because Cash Flow is growing so fast.
-    *   **Forecast:** The yellow line (Fair Value) points upwards.
-*   **Conclusion:** This is a "Buy and Hold" candidate for long-term investors. No red flags.
+**Pro Tip:** Always check price targets with growth damping and multiple normalization.
 
 ---
 
-### Lesson 2: Unmasking the "Investment Trap" – Amazon (AMZN)
-*Theme: Why red numbers are sometimes green.*
+## 6. Technical Market Analysis & Probability
+Combination of classic indicators and modern statistics.
 
-![Chart Amazon](pics/Chart_AMZN.png)
+### Probability Calculation (Prob. Entry/Warning)
+V15 uses log returns & standard deviations:
+1. **Log Return:** Daily percentage change
+2. **Expected Move:** Statistically probable movement (5 days)
+3. **Prob. Entry:** Probability of breaking the 50-day high
+4. **Prob. Warning:** Probability of falling below the SMA 50
 
-*   **The Shock:**
-    *   Look at **FCF TREND**: **DECLINING -51%** (Red). Normally, you run away here.
-    *   Technically, the chart is "BEARISH" (Price falling).
-*   **The V11 Insight:**
-    *   The dashboard shows **⚠ PHASE: INVESTING**.
-    *   The system recognized: Revenue is growing (+11%), only Cash Flow is dropping due to CapEx (AI Data Centers).
-    *   Therefore: **WARNINGS 0/9**. The system correctly suppresses the FCF warning.
-    *   Thanks to **[QTR×4]**, the P/FCF is corrected from ~270x to **36x**.
-*   **Conclusion:** The indicator prevents you from falsely classifying Amazon as a "broken company". It is a buying opportunity on the dip.
+### Weekly Filter (Trend Protection)
+Entry signal only valid if the 10-week average > 40-week average (SMA 50/200 on a weekly basis).
 
----
-
-### Lesson 3: The Turnaround – Newmont (NEM)
-*Theme: The Power of Quarterly Annualization (QTRx4).*
-
-![Chart Newmont](pics/Chart_NEM.png)
-
-*   **The Problem:**
-    *   Mining stocks fluctuate wildly. Newmont had a bad prior year. With old data, the stock would look extremely expensive.
-*   **The V11 Solution:**
-    *   Look at the line **FCF SOURCE**. It says: "FY: 2961M -> **QTRx4: 6284M**".
-    *   The script noticed: "Hey, in the last quarter they earned twice as much money as usual!"
-    *   It re-evaluates the stock to **23x P/FCF** (Green/Cheap).
-*   **Conclusion:** Without this tool, you might have missed the breakout (Entry Signal in August) because you thought the stock was fundamentally too expensive.
+**Pro Tip:** Always check the weekly chart – the daily chart alone is not enough!
 
 ---
 
-### Lesson 4: The Value Opportunity – SAP
-*Theme: Catching the "Falling Knife" (Only for Value Investors!).*
+## 7. 9-Point Warning System (Risk Guard)
+The system scans for 9 specific risks:
 
-![Chart SAP](pics/Chart_SAP.png)
+1. **DILUTION:** Share count increases >5% → Dilution
+2. **NEGATIVE METRIC:** Cash flow/Book value negative → Insolvency risk
+3. **OVERVALUED:** Multiple exceeds historical limit (e.g., >60)
+4. **FUNDAMENTALS ↓↓:** Growth rates are falling
+5. **MARGIN SQUEEZE:** Revenue rising, profit falling
+6. **REV DECLINE:** Core business is shrinking
+7. **DEBT HEAVY:** Debt > 10x FCF
+8. **DETERIORATION:** Equity is deteriorating
+9. **VALUATION SHOCK:** Price massively above Bull Target
 
-*   **The Situation:**
-    *   The price crashes (-35%). Everything is red. Technically a disaster ("BEARISH").
-    *   Momentum Traders (Type B) won't touch this.
-*   **The Value View (Type A):**
-    *   Look at the dashboard: **Grade A+**. **Warnings 0/9**.
-    *   The business (Cloud Software) is running fantastically, only the stock price is falling.
-    *   **P/FCF:** At **24.4x**, SAP is rarely this cheap.
-    *   **R:R (Risk/Reward):** **1:3.9** (Green). This is the best ratio of all tested stocks.
-*   **Conclusion:** The script is screaming "Bargain!" here. But you need nerves of steel to buy against the trend.
-
----
-
-### Lesson 5: Momentum Hype & Danger – Samsung & SK Hynix
-*Theme: When is "too high" really too high?*
-
-![Chart Samsung](pics/Chart_SMSN.png)
-![Chart SK Hynix](pics/Chart_SK_Hynix.png)
-
-*   **The Scenario:**
-    *   Both stocks are benefiting from the AI Memory boom in Korea.
-    *   Fundamentally, both are Top (A/A+).
-*   **The Warning Signal:**
-    *   Look at **DIST. TO MA200** for both.
-    *   Samsung: **98%**. SK Hynix: **106%**.
-    *   This means: The price is **double** the long-term average. This is historically extremely rare.
-*   **The Lesson:**
-    *   Even if a company is fundamentally "A+" (like SK Hynix), you shouldn't buy at any price.
-    *   At >100% distance to MA200, the risk of a crash (Mean Reversion) is gigantic. Do not buy new positions here.
+**Pro Tip:** More than 3 warnings = High Alert!
 
 ---
 
-### Lesson 6: The Cyclical Boom – Noble Corp (NE)
-*Theme: The Trap of Cyclicals.*
+## 8. Dashboard: All Cells in Detail
+The dashboard at the top right is your command center.
 
-![Chart Noble](pics/Chart_NE.png)
+- **⚠ WARNINGS:** Number of flags – 0 = Perfect, >3 = Alert
+- **FUND. GRADE:** A+ (Elite) to F (Junk) – based on profitability & CAGR
+- **GAAP PROFIT:** Net income according to accounting rules
+- **FCF/BOOK TREND:** Growth of the core metric
+- **FORECAST BASIS:** Growth rate used for forecast lines
+- **RS vs. BENCHMARK:** Comparison with the world market (URTH) – only buy "STRONGER"!
+- **STOP / R:R:** ATR-based stop-loss & Risk-to-Reward ratio (>2.0)
 
-*   **The Picture:**
-    *   Price explodes upwards. **ADX 44** (Extremely strong trend).
-    *   Fundamentally looks dreamy: FCF growing by **+60%**.
-*   **The Trap:**
-    *   Offshore Drilling is extremely cyclical. If oil prices fall, these profits are gone tomorrow.
-    *   The script shows **🔥 CYCLICAL BOOM**.
-    *   It warns you: "Don't believe these growth numbers are forever."
-*   **Conclusion:** A great trade for momentum, but exit as soon as the trend breaks (MA50 crossunder). Not a stock to inherit to your grandchildren.
-
----
-
-### Lesson 7: Quality with a Scratch – Arista (ANET)
-*Theme: Reading the fine details.*
-
-![Chart Arista](pics/Chart_ANET.png)
-
-*   **Analysis:**
-    *   Grade A+ (5/5). One of the best companies in the world.
-    *   Sector "OUT OF FAVOR" (Tech is currently unloved), but the stock rises anyway (Relative Strength: STRONGER). This shows immense quality.
-*   **The Detail:**
-    *   Warning **MARGIN↓**.
-    *   This means: Revenue is growing (+32%), but profit isn't keeping up. Arista might have to give discounts to fend off competitors.
-*   **Conclusion:** Complaining on a high level, but a first warning sign to keep an eye on.
+**Pro Tip:** Always check the dashboard before making a purchase decision.
 
 ---
 
-### Lesson 8: The ASML Data Problem – ASML
-*Theme: When data lies (Lumpiness).*
+## 9. Risk Management & Position Sizing
+V15 protects against excessive risk.
 
-![Chart ASML](pics/Chart_ASML.png)
+### Dynamic Stop-Loss
+Two factors:
+1. **ATR (Average True Range):** Stop 2 ATR below the price
+2. **Base Low:** Low of the last 50 days
+Automatic selection of the safer value.
 
-*   **The Anomaly:**
-    *   The script shows a **P/FCF of 11x**. For a monopoly like ASML, that would be a gift.
-*   **The Reality:**
-    *   ASML sells machines for €300M. If they deliver many in one quarter, cash flow explodes briefly.
-    *   The script calculates this "Super-Quarter" times 4 (**[QTRx4]**). This distorts the picture slightly too positively here.
-*   **Lesson:** Trust the tool, but don't turn off your brain. ASML is cheap, but probably not *that* cheap (realistically closer to 25-30x). Still: **0/9 Warnings** confirms the quality.
+### R:R Ratio (Risk-to-Reward)
+Signal only turns green if the potential is at least twice as high as the risk to the stop-loss.
 
----
-
-### Lesson 9: Divergence – Exxon Mobil (XOM)
-*Theme: Momentum without Foundation.*
-
-![Chart Exxon](pics/Chart_XOM.png)
-
-*   **The Picture:**
-    *   Trend is Bullish (Green). Sector is "FAVORED" (Energy does well in late cycles).
-    *   But Fundamental: Grade **B**, Warning **FCF↓↓** (Cash Flow dropping).
-*   **What is happening here?**
-    *   Price is rising because oil is expensive (Sector Rotation). But operationally, the company is losing cash flow power (-10%).
-*   **Strategy:**
-    *   This is a pure "Trade". As long as the music plays (Trend green), dance along. But as soon as the music stops, sell immediately, because the fundamentals won't support the price long-term.
+**Pro Tip:** R:R Ratio > 2 – otherwise, no entry!
 
 ---
 
-## 7. The Pro Checklist
+## 10. Case Studies
 
-Print this page. Go through these points **before** you click "Buy".
+This is an excellent example chart! NVIDIA (NVDA) perfectly demonstrates how the **V15 logic** handles extreme growth figures and market developments.
 
-### A) The Health Check (Fundamental)
-1.  [ ] Is the **FUND. GRADE** at least **B**? (Better A or A+)
-2.  [ ] Are **WARNINGS** less than 2?
-3.  [ ] Are there deadly warnings (`DILUTION`, `DEBT`)? -> *Abort.*
+### 📈 Subsection 10.1: NVIDIA – The Giant at the Peak
+**(Case Study: Growth Damping & Cyclical Overheating)**
 
-### B) The Valuation Check
-1.  [ ] Is **P/FCF** Green or Blue?
-2.  [ ] Is there a **[QTR×4]** tag? -> *Check: Is it a real Turnaround (Newmont) or a Data Error (ASML)?*
-3.  [ ] Does it say **🔥 CYCLICAL BOOM**? -> *Caution, do not buy at the high.*
+NVIDIA is the prime example of a company that looks fundamental "perfect," but where the system urges caution because trees don't grow to the sky.
 
-### C) The Technical Check (Timing)
-1.  [ ] **Trend:** Is the price above the **SMA 50** (blue line)?
-2.  [ ] **Overheating:** Is the **DIST TO MA200** under 50%? (If >50%, only partial positions or wait).
-3.  [ ] **Opportunity:** Is the **R:R** (Risk/Reward) green (> 1:2)?
-    *   *Exception:* Momentum Traders ignore R:R on breakouts if ADX > 25.
-
-### D) The Macro Picture
-1.  [ ] Does the Sector (**SECTOR FIT**) match the current phase? ("Favored" is a tailwind).
+1.  **Fundamental Excellence (FUND. GRADE: A+):** The dashboard shows a straight **A+ (5/5)** grade.
+    *   **Why?** Revenue growth of **+48.4%** and an FCF (Free Cash Flow) trend of **+65.4%** over 4 years are absolute elite values.
+    *   **GAAP PROFIT:** With nearly **$100 billion** in profit (99,198M), the company is a highly profitable cash machine.
+2.  **Warning of "Cyclical Boom" (🔥 PHASE):** Despite the top grade, the **PHASE** field glows orange: **"🔥 CYCLICAL BOOM (FCF CAGR 65.4%)"**.
+    *   **The V15 Logic:** The system recognizes that FCF growth of 65% is mathematically unsustainable in the long term. It marks this as a "cyclical boom."
+3.  **Price Forecast & Growth Damping (FORECAST):** Look closely at the **FORECAST (P/FCF)** line. It says: **"+27.2% (CYCL DECAY) | NORM 44.9x"**.
+    *   **CYCL DECAY:** Even though the company grew by 65%, V15 only uses a damped growth rate of +27.2% for the future.
+    *   **The Result:** The yellow line (**1Y FAIR**) is at **$181.49**. Since the current price is around **$189.93**, the tool signals: **The stock is currently slightly overvalued (-4.4% to Fair Value).**
+4.  **The Technical Dilemma (PROB. WARNING vs. ENTRY):**
+    *   **PROB. ENTRY (5d): 100%** -> Statistically, an upward breakout is almost certain.
+    *   **PROB. WARNING (5d): 99.36%** -> Simultaneously, a pullback to the MA50 is almost equally certain.
+    *   **ADX (TREND): 10.3 CHOPPY** -> Low ADX means no clear trend; the stock is "jittering" sideways.
+5.  **Sector Rotation:**
+    *   **CYCLE PHASE: LATE EXPANSION** -> We are in the late cycle.
+    *   **SECTOR FIT: OUT OF FAVOR** -> Even though NVIDIA is "Stronger" than the market, the sector is not currently favored by "Smart Money."
 
 ---
 
-## 8. Risk Disclaimer
+### 📈 Subsection 10.2: JPMorgan – The Bank Model (P/B)
+**(Case Study: Book Value Valuation & Valuation Gravity)**
 
-**IMPORTANT – PLEASE READ CAREFULLY:**
+JPMorgan shows us how Master Guard V15 automatically changes strategy for financial institutions.
 
-Trading in financial markets (Stocks, Derivatives, Crypto, Commodities) involves **significant risks** and can lead to the **total loss** of your invested capital.
+1.  **Automatic Model Switch (Model: BOOK):** The system recognizes the "Finance" sector and immediately switches from the FCF model to the **Price-to-Book (P/B)** ratio.
+2.  **Warning: Massive Overvaluation (1Y FAIR):**
+    *   **P/B (NOW): 2.3x** vs. **NORM 1.6x**.
+    *   **1Y FAIR:** $233.78. Current price: $308.67.
+    *   **Verdict:** You are buying at the absolute historical limit.
+3.  **Technical Decay (TREND: BEARISH):** The SMA 50 has been broken to the downside. The **PROB. WARNING** is 100%.
+4.  **R:R Paradox:** The R:R might look green because the stop is close, but the **Master Guard Rule** states: Never enter if the trend is BEARISH and the price is massively above the 1Y FAIR value.
 
-1.  **No Financial Advice:** This manual, the analyses, and the discussed "Master Guard V11" script serve exclusively for **educational and informational purposes**. It is **not** a solicitation to buy or sell securities.
-2.  **Personal Responsibility:** You make all investment decisions on your own responsibility. The authors assume no liability for losses incurred through the use of this tool.
-3.  **Software Limitation:** Technical indicators and fundamental data are based on the past. They do not guarantee future profits. Calculations like the [QTR×4] adjustment are mathematical models that leave room for interpretation.
-4.  **Data Quality:** Data is sourced from TradingView. No guarantee is assumed for its accuracy.
-5.  **Stop-Loss:** Never trade without protection (Stop-Loss).
+---
 
-**Good luck on your journey from Beginner to Pro Trader!**
+### 📈 Subsection 10.3: NextEra Energy – The Utility Model (P/E)
+**(Case Study: Regulated Growth & "Smart Money" Rotation)**
+
+1.  **Specialized Earnings Model (Model: EARNINGS):** V15 uses **P/E (KGV)** because utilities have high CapEx that distorts FCF. Growth is capped at 10-12% due to regulation.
+2.  **Smart Money Rotation:** **SECTOR FIT: SMART MONEY (Utilities)** is a massive buy signal. In the late cycle, money flees to safe havens.
+3.  **Warning: P/E > 25:** A P/E of 28 is historically high for a utility (**NORM 21.5x**). The stock is rising due to rotation but is fundamentally too expensive.
+4.  **Strong Momentum:** ADX of 41.1 shows an extremely powerful trend. However, the R:R is red because the price is too far from the stop.
+
+---
+
+### 📈 Subsection 10.4: Amazon – The Investment Dilemma
+**(Case Study: FCF Erosion through CapEx & the Valuation Vacuum)**
+
+1.  **Fundamental Warning (1/9: FUNDAMENTALS ↓↓):** FCF trend is **-38%** while revenue grows. This is due to massive AI and logistics spending.
+2.  **Forecast Shock:** Because the FCF trend is negative, the mathematical formula projects this forward. **1Y FAIR: $129.97** (Current: ~$209). V15 is extremely conservative here.
+3.  **Technical Rebound:** Despite bad fundamentals, R:R is green (1:2.9) because the stock is "oversold" (RSI 38.5). This is a **technical rebound trade**, not a long-term investment signal.
+
+---
+
+### 📈 Subsection 10.5: Noble Corp – The Cycle Trap
+**(Case Study: 🔥 CYCLICAL BOOM & the Rubber Band Effect)**
+
+1.  **Cyclical Boom:** FCF Trend is **+59.4%**. V15 marks this as a boom, meaning: "Don't expect this to last forever."
+2.  **The Rubber Band:** **DIST. TO MA200: 50.77%**. The price is stretched too far from its long-term average. The "rubber band" usually snaps back.
+3.  **Volume Warning:** **VOLUME: DISTRIBUTION (Red)**. Big institutions are starting to sell their gains to retail investors.
+
+---
+
+### 📈 Subsection 10.6: Rivian – The Growth Model (P/S)
+**(Case Study: Unprofitable Firms & Valuation via Sales)**
+
+1.  **Model: SALES:** Since there are no profits, V15 uses the **Price-to-Sales (P/S)** ratio.
+2.  **Grade C:** V15 is a "Guard." No profits = High risk. Only profitable firms get an "A."
+3.  **Macro Headwind:** **OUT OF FAVOR**. In the late cycle, Smart Money avoids unprofitable growth stocks. Fundamental undervaluation is useless without momentum.
+
+---
+
+### 📈 Subsection 10.7: Plug Power – The Capital Destruction Machine
+**(Case Study: Grade F & The Warning Light Storm)**
+
+1.  **Grade F (0/5):** The company fails every quality check. It burns billions without earning a cent.
+2.  **The Death Quartet:** **DILUTION**, **NEGATIVE METRIC**, **DEBT HEAVY**, **FUNDAMENTALS ↓↓**.
+3.  **Dilution:** The company prints shares to pay debt, destroying shareholder value. **STRICT BUY BAN**.
+
+---
+
+### 📈 Subsection 10.8: ASML – The "Lumpy" Monopoly
+**(Case Study: Irregular Cash Flows & MA200 Stretch)**
+
+1.  **Auto-Lumpy Logic:** V15 knows ASML sells multi-million dollar machines irregularly. It suppresses "declining fundamentals" warnings because the volatility is inherent to the business model.
+2.  **Fair Value Precision:** Currently perfectly valued ($1,499 vs $1,476).
+3.  **Entry Risk:** **DIST. TO MA200: 53.67%**. Mathematically, you risk $5 to win $1. No new buy.
+
+---
+
+### 📈 Subsection 10.9: Tesla – The Volatility Monster
+**(Case Study: Statistical Probability & Valuation Extremes)**
+
+1.  **Price-to-FCF 247.4x:** Astronomically overvalued. V15 shows a downside potential of **-46.6%** to reach Fair Value ($219).
+2.  **Prob. Entry 10.44%:** The chance of a new high in 5 days is tiny. V15 advises against "lottery ticket" buys.
+3.  **Trend Divergence:** Daily is BEARISH, Weekly is BULLISH. No entry until both align.
+
+---
+
+### 📈 Subsection 10.10: Apple – The Market Anchor
+**(Case Study: Relative Strength & Fundamental Saturation)**
+
+1.  **The Fortress:** $117 Billion GAAP Profit. Grade B because growth is slow (+1.4%).
+2.  **Relative Strength (RS):** Even though technicals are bearish, Apple is **STRONGER** than the world market. It is the last thing investors sell.
+3.  **Neutral Verdict:** Apple is a "Hold." It's an anchor, but without revenue growth, there is no massive outperformance.
+
+---
+
+## 11. Practical Guide & Psychology
+
+### Perfect Setup Workflow
+1.  **Sector Check:** Sector green (Favored)?
+2.  **Fundamental Check:** Grade A/B, Warnings < 2?
+3.  **Technical Check:** Weekly Trend Bullish, price above SMA 50?
+4.  **Signal:** Green "ENTRY" label?
+5.  **RR Check:** Risk-to-Reward ratio > 2?
+
+### Psychology: Defeating Greed
+If a stock reaches the **BULL TARGET** (top green line), the dashboard often switches to "Overvalued." Professionals take partial profits; amateurs buy more. V15 objectively warns against euphoria.
+
+**Pro Tip:** Secure profits, do not buy more out of greed.
+
+---
+
+## Conclusion
+**Strategic Fundamental Analysis & Algorithmic Market Engineering V15** is a mathematical bulwark against poor decisions. Think like an institutional investor: Risk first (Warnings, Debt, Sector), then opportunity (Growth, Trend, Probability).
+
+**Never trade blindly on signals – use the dashboard to understand the story behind the chart!**
