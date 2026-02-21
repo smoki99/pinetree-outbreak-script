@@ -230,6 +230,8 @@ float revGrowth = not na(revY0_y) and not na(revY1_y) and revY1_y > 0 ? ((revY0_
 bool warnMarginSqueeze = not isRestructured and not na(niGrowth) and not na(revGrowth) and revGrowth > 0 and niGrowth < revGrowth and (revGrowth - niGrowth) > 5
 bool warnRevDecline = not isRestructured and revValid and revCAGR < -5
 bool warnEPSLoss = not na(epsFY) and epsFY < 0
+
+// --- MODIFIZIERT (1/3): Hinzufügen der Erkennung der "Investment Phase" aus V10 ---
 bool isInvestmentPhase = revValid and fcfValid and revCAGR > 5 and fcfCAGR < -10
 
 // --- PER SHARE METRICS ---
@@ -282,7 +284,7 @@ else if valuationModel == "SALES" // Growth Spec Logic
     valWarnThreshold := 20.0 // P/S > 20 is dangerous
 else
     // Standard FCF
-    warnDeterioration := fcfValid and fcfCAGR < -10
+    warnDeterioration := fcfValid and fcfCAGR < -10 and not isInvestmentPhase // --- MODIFIZIERT ---: Verhindert "FUNDAMENTALS" Warnung während Investment-Phase
     valWarnThreshold := 60.0
 
 bool warnOvervalued = not na(activeMultiple) and activeMultiple > valWarnThreshold
@@ -338,8 +340,12 @@ else if valuationModel == "SALES" // Unprofitable Growth
     smartGrowth := revValid ? decayGrowth(revCAGR) : 0.0
     forecastAdjLabel := "REVENUE"
 else // Standard FCF
+    // --- MODIFIZIERT (2/3): Hinzufügen der Prognose-Logik für die "Investment Phase" ---
     if isRestructured
         smartGrowth := 0.0
+    else if isInvestmentPhase
+        smartGrowth := math.max(0, (fcfCAGR + revCAGR) / 2.0)
+        forecastAdjLabel := "INVEST ADJ"
     else if isCyclicalBoom
         smartGrowth := decayGrowth(fcfCAGR) * 0.7
         forecastAdjLabel := "CYCL DECAY"
@@ -667,9 +673,14 @@ if barstate.islast
     table.cell(masterTable, 1, row, trendVal, bgcolor=trendCol, text_color=color.white)
     row += 1
 
+    // --- MODIFIZIERT (3/3): Hinzufügen der Dashboard-Anzeige für die "Investment Phase" ---
     if isRestructured
         table.cell(masterTable, 0, row, "📋 PHASE", text_color=color.white)
         table.cell(masterTable, 1, row, "RESTRUCTURED / SPINOFF", bgcolor=color.orange, text_color=color.white)
+        row += 1
+    else if isInvestmentPhase
+        table.cell(masterTable, 0, row, "📈 PHASE", text_color=color.white)
+        table.cell(masterTable, 1, row, "INVESTING (Rev↑ FCF↓)", bgcolor=color.orange, text_color=color.white)
         row += 1
     else if isCyclicalBoom
         table.cell(masterTable, 0, row, "🔥 PHASE", text_color=color.white)
