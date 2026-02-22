@@ -1,0 +1,85 @@
+@if (!result) {
+  <div class="dashboard empty">Select a symbol and wait for data to load.</div>
+} @else {
+  <div class="dashboard">
+    <div class="grid">
+      <div class="cell label">WARNINGS</div>
+      <div class="cell value" [class]="'bg-' + result.warnCountColor">{{ result.warnCount }}/9: {{ result.warnText }}</div>
+
+      <div class="cell label">FUND. GRADE</div>
+      <div class="cell value" [class]="'bg-' + result.fundGradeColor">{{ result.fundGrade }} ({{ result.fundScore }}/5)</div>
+
+      <div class="cell label">GAAP PROFIT</div>
+      <div class="cell value" [class]="'bg-' + result.profitColor">{{ result.profitLabel }}</div>
+
+      <div class="cell label">EPS (TTM)</div>
+      <div class="cell value">{{ result.eps != null ? result.eps.toFixed(2) : 'N/A' }}</div>
+
+      <div class="cell label">REVENUE</div>
+      <div class="cell value" [class]="'color-' + result.revColor">{{ result.revTrend }}</div>
+
+      <div class="cell label">FCF TREND</div>
+      <div class="cell value" [class]="'color-' + result.fcfColor">{{ result.fcfTrend }}</div>
+
+      <div class="cell label">◆ PHASE</div>
+      <div class="cell value">{{ result.phaseLabel }}</div>
+
+      <div class="cell label">{{ result.activeMetricName }} (NOW)</div>
+      <div class="cell value">{{ result.activeMultiple != null ? result.activeMultiple.toFixed(2) + 'x' : 'N/A' }}</div>
+
+      <div class="cell label">FORECAST</div>
+      <div class="cell value small">{{ result.forecastBasisText }}</div>
+
+      <div class="cell label">1Y BEAR</div>
+      <div class="cell value">{{ result.priceBear != null ? result.priceBear.toFixed(2) + (result.upsideBear != null ? ' (' + result.upsideBear.toFixed(2) + '%)' : '') : 'N/A' }}</div>
+
+      <div class="cell label">1Y FAIR</div>
+      <div class="cell value">{{ result.priceFair != null ? result.priceFair.toFixed(2) + (result.upsideFair != null ? ' (' + result.upsideFair.toFixed(2) + '%)' : '') : 'N/A' }}</div>
+
+      <div class="cell label">1Y BULL</div>
+      <div class="cell value">{{ result.priceBull != null ? result.priceBull.toFixed(2) + (result.upsideBull != null ? ' (' + result.upsideBull.toFixed(2) + '%)' : '') : 'N/A' }}</div>
+
+      <div class="cell label">TREND</div>
+      <div class="cell value" [class]="result.ma50Rising ? 'bg-green' : 'bg-red'">{{ result.ma50Rising ? 'BULLISH' : 'BEARISH' }}</div>
+
+      <div class="cell label">WEEKLY TREND</div>
+      <div class="cell value" [class]="result.weeklyTrend === 'BULLISH' ? 'bg-green' : 'bg-red'">{{ result.weeklyTrend }}</div>
+
+      <div class="cell label">ADX TREND</div>
+      <div class="cell value" [class]="result.isTrending ? 'bg-green' : ''">{{ result.adx != null ? result.adx.toFixed(2) + (result.isTrending ? ' TRENDING' : ' CHOPPY') : 'N/A' }}</div>
+
+      <div class="cell label">RSI</div>
+      <div class="cell value">{{ result.rsi != null ? result.rsi.toFixed(2) : 'N/A' }}</div>
+
+      <div class="cell label">VOLUME</div>
+      <div class="cell value">{{ result.volStatus }}</div>
+
+      <div class="cell label">RS vs BATS</div>
+      <div class="cell value">{{ result.rsVsBenchmark }}</div>
+
+      <div class="cell label">CYCLE PHASE</div>
+      <div class="cell value">{{ result.cyclePhase }}</div>
+
+      <div class="cell label">SECTOR FIT</div>
+      <div class="cell value small">{{ result.sectorFitLabel }}{{ result.sector ? ' (' + result.sector + ')' : '' }}</div>
+
+      <div class="cell label">NEXT PHASE</div>
+      <div class="cell value">{{ result.nextPhase }}</div>
+
+      <div class="cell label">PROB. WARNING (5d)</div>
+      <div class="cell value">{{ result.warnProb != null ? result.warnProb.toFixed(2) + '%' : 'N/A' }}</div>
+
+      <div class="cell label">PROB. ENTRY (5d)</div>
+      <div class="cell value">{{ result.entryProb != null ? result.entryProb.toFixed(2) + '%' : 'N/A' }}</div>
+
+      <div class="cell label">DIST. TO MA50</div>
+      <div class="cell value">{{ result.distToMA50Pct != null ? result.distToMA50Pct.toFixed(2) + '%' : 'N/A' }}</div>
+
+      <div class="cell label">DIST. TO MA200</div>
+      <div class="cell value">{{ result.distToMA200Pct != null ? result.distToMA200Pct.toFixed(2) + '%' : 'N/A' }}</div>
+
+      <div class="cell label">STOP / R:R</div>
+      <div class="cell value">{{ result.stopLevel != null ? result.stopLevel.toFixed(2) : 'N/A' }}{{ result.rrRatio != null && result.rrRatio > 0 ? ' | 1:' + result.rrRatio.toFixed(2) : '' }}</div>
+    </div>
+  </div>
+}
