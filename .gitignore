@@ -1,0 +1,9 @@
+/angular-app/.angular
+/.idea
+/angular-app/dist
+/angular-app/node_modules
+/angular-app/.vscode
+/angular-app/.DS_Store
+/angular-app/server/.npm-cache
+/angular-app/server/node_modules
+/angular-app/.npm-cache
