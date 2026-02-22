@@ -94,12 +94,6 @@ float utilClose    = request.security("AMEX:XLU", timeframe.period, close)
 // ============================================================================
 // VALUATION MODEL SELECTION
 // ============================================================================
-// Logic: 
-// 1. Banks -> P/B Model (Equity)
-// 2. Utilities -> P/E Model (EPS) - Because FCF is often negative due to CapEx
-// 3. Unprofitable Growth -> P/S Model (Revenue) - Net Income & FCF < 0
-// 4. Standard -> P/FCF Model
-
 float fcfQuarterlyAnnualized = not na(fcfQuarterly) ? fcfQuarterly * 4.0 : na
 bool isValuationShock = false // Simplified for V15 to rely on model switching
 bool isAutoLumpy = syminfo.ticker == "ASML" or syminfo.ticker == "BA"
@@ -167,6 +161,11 @@ bool fcfValid = not na(fcfCAGR)
 bool eqValid  = not na(eqCAGR)
 bool epsValid = not na(epsCAGR)
 
+// If a financial stock has declining book value but growing/positive EPS, 
+// it's likely AOCI distortion (unrealized bond losses). Fallback to EARNINGS.
+if isBank and eqValid and eqCAGR < 0 and epsValid and epsCAGR > 0 and epsFY > 0
+    valuationModel := "EARNINGS"
+
 // Helper for strings
 getTrendInfo(float cagr, string period, float threshold) =>
     string tStr = "NO DATA"
@@ -231,7 +230,7 @@ bool warnMarginSqueeze = not isRestructured and not na(niGrowth) and not na(revG
 bool warnRevDecline = not isRestructured and revValid and revCAGR < -5
 bool warnEPSLoss = not na(epsFY) and epsFY < 0
 
-// --- MODIFIZIERT (1/3): Hinzufügen der Erkennung der "Investment Phase" aus V10 ---
+// Investment Phase Detection
 bool isInvestmentPhase = revValid and fcfValid and revCAGR > 5 and fcfCAGR < -10
 
 // --- PER SHARE METRICS ---
@@ -268,7 +267,9 @@ else
     activeMultiple := currentPFCF
     activeMetricName := "P/FCF"
 
-// Warnings Logic
+// ============================================================================
+// WARNINGS LOGIC
+// ============================================================================
 bool warnNegativeMetric = activeMetric <= 0
 bool warnDeterioration = false
 float valWarnThreshold = 0.0
@@ -276,15 +277,14 @@ float valWarnThreshold = 0.0
 if valuationModel == "BOOK"
     warnDeterioration := eqValid and eqCAGR < -5
     valWarnThreshold := 3.0
-else if valuationModel == "EARNINGS" // Utility Logic
+else if valuationModel == "EARNINGS" 
     warnDeterioration := epsValid and epsCAGR < -2
-    valWarnThreshold := 25.0 // Utilities rarely trade above 25x
-else if valuationModel == "SALES" // Growth Spec Logic
-    warnDeterioration := revValid and revCAGR < 5 // If growth slows to <5%, P/S is dangerous
-    valWarnThreshold := 20.0 // P/S > 20 is dangerous
+    valWarnThreshold := 25.0 
+else if valuationModel == "SALES" 
+    warnDeterioration := revValid and revCAGR < 5 
+    valWarnThreshold := 20.0 
 else
-    // Standard FCF
-    warnDeterioration := fcfValid and fcfCAGR < -10 and not isInvestmentPhase // --- MODIFIZIERT ---: Verhindert "FUNDAMENTALS" Warnung während Investment-Phase
+    warnDeterioration := fcfValid and fcfCAGR < -10 and not isInvestmentPhase
     valWarnThreshold := 60.0
 
 bool warnOvervalued = not na(activeMultiple) and activeMultiple > valWarnThreshold
@@ -317,6 +317,7 @@ color fundGradeColor = fundScore >= 4 ? color.green : fundScore >= 3 ? color.blu
 // ============================================================================
 // SMART FORECASTING
 // ============================================================================
+// 1. Function definition MUST be at the top of this block
 decayGrowth(float rawCAGR) =>
     float adj = rawCAGR
     if rawCAGR > 50
@@ -325,22 +326,25 @@ decayGrowth(float rawCAGR) =>
         adj := 20.0 + (rawCAGR - 20.0) * 0.5
     adj
 
+// 2. Variable initialization
 float smartGrowth = 0.0
 string forecastAdjLabel = ""
 
+// 3. Logic execution
 if valuationModel == "BOOK" // Bank
     smartGrowth := eqValid ? eqCAGR : 0.0
     forecastAdjLabel := "BOOK"
-else if valuationModel == "EARNINGS" // Utility
-    // Utilities are stable. Cap growth at 8% conservatively, 12% max.
-    smartGrowth := epsValid ? math.min(epsCAGR, 10.0) : 0.0
-    forecastAdjLabel := "REGULATED"
+else if valuationModel == "EARNINGS" // Utility OR Adjusted Financials
+    if isUtility
+        smartGrowth := epsValid ? math.min(epsCAGR, 10.0) : 0.0
+        forecastAdjLabel := "REGULATED"
+    else
+        smartGrowth := epsValid ? decayGrowth(epsCAGR) : 0.0
+        forecastAdjLabel := "EARNINGS"
 else if valuationModel == "SALES" // Unprofitable Growth
-    // Sales growth needs heavy decay for P/S models
     smartGrowth := revValid ? decayGrowth(revCAGR) : 0.0
     forecastAdjLabel := "REVENUE"
 else // Standard FCF
-    // --- MODIFIZIERT (2/3): Hinzufügen der Prognose-Logik für die "Investment Phase" ---
     if isRestructured
         smartGrowth := 0.0
     else if isInvestmentPhase
@@ -560,7 +564,7 @@ float expectedMove    = close * logStdDev * math.sqrt(5)
 float distToMA50 = close - ma50
 float warnProb   = na(distToMA50) ? na : (distToMA50 > 0 ? math.min(100, (expectedMove / distToMA50) * 50) : 100.0)
 float distToHigh = highestHigh - close
-float entryProb  = na(distToHigh) ? na : (distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : 0.0)
+float entryProb  = na(distToHigh) ? na : (distToHigh > 0 ? math.min(100, (expectedMove / distToHigh) * 50) : 100.0)
 
 bool ma50Rising  = ma50 > ma50[5]
 float maxVol5    = ta.highest(volume, 5)
@@ -662,7 +666,7 @@ if barstate.islast
         trendCol := eqColor
     else if valuationModel == "EARNINGS"
         trendTitle := "EPS TREND"
-        trendVal := str.tostring(epsCAGR, "#.#") + "% (Regulated)"
+        trendVal := str.tostring(epsCAGR, "#.#") + (isUtility ? "% (Regulated)" : "%")
         trendCol := color.blue
     else if valuationModel == "SALES"
         trendTitle := "REVENUE TREND"
@@ -673,7 +677,6 @@ if barstate.islast
     table.cell(masterTable, 1, row, trendVal, bgcolor=trendCol, text_color=color.white)
     row += 1
 
-    // --- MODIFIZIERT (3/3): Hinzufügen der Dashboard-Anzeige für die "Investment Phase" ---
     if isRestructured
         table.cell(masterTable, 0, row, "📋 PHASE", text_color=color.white)
         table.cell(masterTable, 1, row, "RESTRUCTURED / SPINOFF", bgcolor=color.orange, text_color=color.white)
