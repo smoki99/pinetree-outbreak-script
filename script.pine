@@ -291,7 +291,7 @@ bool warnOvervalued = not na(activeMultiple) and activeMultiple > valWarnThresho
 float debtToFCF = not na(totalDebt) and not na(fcfEffective) and fcfEffective > 0 ? totalDebt / fcfEffective : na
 bool warnDebtHeavy = (isBank or isUtility) ? false : (not na(debtToFCF) and debtToFCF > 10) 
 
-int warnCount = (warnDilution ? 1 : 0) + (warnNegativeMetric ? 1 : 0) + (warnMarginSqueeze ? 1 : 0) + (warnRevDecline ? 1 : 0) + (warnDeterioration ? 1 : 0) + (warnOvervalued ? 1 : 0) + (warnDebtHeavy ? 1 : 0)
+int warnCount = (warnDilution ? 1 : 0) + (warnNegativeMetric ? 1 : 0) + (warnMarginSqueeze ? 1 : 0) + (warnRevDecline ? 1 : 0) + (warnDeterioration ? 1 : 0) + (warnOvervalued ? 1 : 0) + (warnDebtHeavy ? 1 : 0) + (warnEPSLoss ? 1 : 0)
 color warnCountColor = warnCount == 0 ? color.green : (warnCount <= 2 ? color.orange : color.red)
 
 string warnText = ""
@@ -305,6 +305,12 @@ if warnDeterioration
     warnText += "FUNDAMENTALS↓↓ "
 if warnDebtHeavy
     warnText += "DEBT "
+if warnMarginSqueeze
+    warnText += "MARGIN_SQZ "
+if warnRevDecline
+    warnText += "REV↓↓ "
+if warnEPSLoss
+    warnText += "EPS<0 "
 
 if warnCount == 0
     warnText := "ALL CLEAR ✓"
@@ -636,7 +642,7 @@ if barstate.islast
     int row = 0
 
     table.cell(masterTable, 0, row, "⚠ WARNINGS", text_color=color.white)
-    table.cell(masterTable, 1, row, str.tostring(warnCount) + "/9: " + warnText, bgcolor=warnCountColor, text_color=color.white, text_size=size.small)
+    table.cell(masterTable, 1, row, str.tostring(warnCount) + "/8: " + warnText, bgcolor=warnCountColor, text_color=color.white, text_size=size.small)
     row += 1
 
     table.cell(masterTable, 0, row, "FUND. GRADE", text_color=color.white)
