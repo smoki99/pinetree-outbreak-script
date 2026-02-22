@@ -1,0 +1,68 @@
+<div class="chart-page">
+  <header class="header">
+    <h1 class="title">Pinetree Strategy Chart</h1>
+    <p class="subtitle">Select a symbol. Data from Yahoo (run the server: <code>cd server && npm install && npm start</code>). No API keys needed.</p>
+
+    <div class="script-callout">
+      <strong>In-app strategy:</strong> Warnings, fund grade, forecasts, trend, and chart overlays (SMA 50/200, bear/fair/bull, stop) are computed here. 
+      <a [href]="tradingViewChartUrl()" target="_blank" rel="noopener" class="open-tv-link">Open on TradingView</a> to compare with script.pine there.
+    </div>
+
+    <div class="symbol-row">
+      <div class="symbol-autocomplete">
+        <input
+          type="text"
+          class="symbol-input"
+          [value]="openDropdown() ? search() : displayValue()"
+          (input)="onInput($any($event.target).value)"
+          (focus)="onFocus()"
+          (blur)="onBlur()"
+          placeholder="Search symbol (e.g. AAPL, PLTR, NASDAQ:MSFT)"
+          autocomplete="off"
+        />
+        @if (openDropdown()) {
+          <ul class="symbol-dropdown" role="listbox">
+            @for (s of filteredSymbols(); track s.value) {
+              <li
+                role="option"
+                class="symbol-option"
+                [class.selected]="selectedSymbol() === s.value"
+                (mousedown)="onSelect(s.value); $event.preventDefault()"
+              >
+                <span class="option-value">{{ s.value }}</span>
+                <span class="option-label">{{ s.label }}</span>
+              </li>
+            }
+            @if (filteredSymbols().length === 0) {
+              <li class="symbol-option empty">No symbols match. Type e.g. NASDAQ:TICKER</li>
+            }
+          </ul>
+        }
+      </div>
+      <span class="symbol-hint">Format: EXCHANGE:TICKER (e.g. NASDAQ:PLTR)</span>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="loading">Loading {{ selectedSymbol() }}…</div>
+  }
+  @if (error()) {
+    <div class="error">{{ error() }}</div>
+  }
+
+  <div class="main">
+    <section class="chart-section">
+      <app-strategy-chart [bars]="bars()" [result]="result()" />
+    </section>
+    <aside class="dashboard-aside">
+      <app-strategy-dashboard [result]="result()" />
+    </aside>
+  </div>
+
+  <footer class="footer">
+    <p>
+      Chart: ApexCharts. Data: Yahoo Finance via local server. 
+      <a [href]="tradingViewChartUrl()" target="_blank" rel="noopener">Open {{ selectedSymbol() }} on TradingView</a>.
+    </p>
+  </footer>
+</div>
