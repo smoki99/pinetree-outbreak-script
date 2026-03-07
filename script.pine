@@ -402,7 +402,9 @@ float betaStdX     = ta.stdev(stockRet, betaLookback)
 float betaStdY     = ta.stdev(benchRet, betaLookback)
 float betaVsURTH   = not na(betaCorr) and not na(betaStdY) and betaStdY > 0 ? betaCorr * betaStdX / betaStdY : na
 
-// Averaged forward growth: average of all available historical CAGRs (used as forward proxy)
+// EPS growth rate (historical CAGR, used as best available forward proxy).
+// PEG standard definition: P/E ÷ EPS-growth — NOT averaged with FCF or Revenue growth.
+// fwdGrowthAvg keeps the multi-metric average for display context only (shown in FWD P/E cell).
 float fwdGrowthSum   = 0.0
 int   fwdGrowthCount = 0
 if epsValid and not na(epsCAGR)
@@ -416,15 +418,21 @@ if revValid and not na(revCAGR)
     fwdGrowthCount += 1
 float fwdGrowthAvg = fwdGrowthCount > 0 ? fwdGrowthSum / fwdGrowthCount : na
 
-// Forward EPS and Forward PE
-float fwdEPS = not na(epsFY) and epsFY > 0 and not na(fwdGrowthAvg) ? epsFY * (1.0 + fwdGrowthAvg / 100.0) : na
+// EPS-only growth rate (in %, e.g. 35.0 for 35%) – the correct divisor for PEG.
+// Falls back to fwdGrowthAvg only when EPS CAGR is unavailable.
+float epsGrowthRate = epsValid and not na(epsCAGR) ? epsCAGR : (not na(fwdGrowthAvg) ? fwdGrowthAvg : na)
+
+// Forward EPS and Forward PE: project one year ahead using EPS CAGR.
+float fwdEPS = not na(epsFY) and epsFY > 0 and not na(epsGrowthRate) ? epsFY * (1.0 + epsGrowthRate / 100.0) : na
 float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
 
-// PEG (Forward) = Forward PE / Averaged Forward Growth (%)
-float pegRatio  = not na(fwdPE) and not na(fwdGrowthAvg) and fwdGrowthAvg > 0 ? fwdPE / fwdGrowthAvg : na
+// PEG (Forward) = Forward PE / EPS growth rate (%)
+// Matches Finviz methodology: PEG = ForwardP/E ÷ EPS_growth%.
+// Note: Finviz uses analyst 5-yr consensus; we use historical EPS CAGR as proxy.
+float pegRatio  = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate != 0 ? fwdPE / epsGrowthRate : na
 
-// PERG = Forward PE / (Growth% * Beta)  [risk-adjusted PEG; uses |beta| to support counter-cyclical stocks]
-float pergRatio = not na(fwdPE) and not na(fwdGrowthAvg) and fwdGrowthAvg > 0 and not na(betaVsURTH) and betaVsURTH != 0 ? fwdPE / (fwdGrowthAvg * math.abs(betaVsURTH)) : na
+// PERG = Forward PE / (EPS growth% * |Beta|)  [risk-adjusted PEG]
+float pergRatio = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate != 0 and not na(betaVsURTH) and betaVsURTH != 0 ? fwdPE / (epsGrowthRate * math.abs(betaVsURTH)) : na
 
 // ============================================================================
 // SECTOR ROTATION & TECHNICAL CALCULATIONS
@@ -853,13 +861,13 @@ if barstate.islast
     row += 1
 
     color fwdPEColor = not na(fwdPE) ? (fwdPE > 30 ? color.red : (fwdPE > 15 ? color.orange : color.green)) : color.gray
-    string fwdGrowthStr = not na(fwdGrowthAvg) ? " (g=" + str.tostring(fwdGrowthAvg, "#.#") + "%)" : ""
+    string epsGrowthStr = not na(epsGrowthRate) ? " (EPS " + epsPeriod + " g=" + str.tostring(epsGrowthRate, "#.#") + "%)" : ""
     table.cell(masterTable, 0, row, "FWD P/E", text_color=color.white)
-    table.cell(masterTable, 1, row, not na(fwdPE) ? str.tostring(fwdPE, "#.#") + "x" + fwdGrowthStr : "N/A", bgcolor=fwdPEColor, text_color=color.white, text_size=size.small)
+    table.cell(masterTable, 1, row, not na(fwdPE) ? str.tostring(fwdPE, "#.#") + "x" + epsGrowthStr : "N/A", bgcolor=fwdPEColor, text_color=color.white, text_size=size.small)
     row += 1
 
     color pegColor = not na(pegRatio) ? (pegRatio > 2.0 ? color.red : (pegRatio > 1.0 ? color.orange : color.green)) : color.gray
-    table.cell(masterTable, 0, row, "PEG (FWD)", text_color=color.white)
+    table.cell(masterTable, 0, row, "PEG (FWD,EPS " + epsPeriod + ")", text_color=color.white)
     table.cell(masterTable, 1, row, not na(pegRatio) ? str.tostring(pegRatio, "#.##") : "N/A", bgcolor=pegColor, text_color=color.white)
     row += 1
 
