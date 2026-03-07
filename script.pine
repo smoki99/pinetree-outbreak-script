@@ -33,7 +33,7 @@ bool isUtility = stockSector == "Utilities" or stockSector == "Utility"
 // ============================================================================
 // DATA REQUESTS (Global Scope)
 // NOTE: Pine Script v6 allows up to 40 security calls.
-// Current usage: ~27/40 (after adding epsFY_fwd)
+// Current usage: ~26/40
 // ============================================================================
 
 // --- Core financial data ---
@@ -49,9 +49,6 @@ float fcfQuarterly = request.financial(syminfo.tickerid, "FREE_CASH_FLOW", "FQ")
 float epsFY_req = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY")
 float epsTTM    = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "TTM")
 float epsFY     = not na(epsTTM) ? epsTTM : epsFY_req
-// Analyst consensus next-fiscal-year EPS estimate — used for Finviz-compatible Forward P/E.
-// "FY+1" is the standard TradingView period code for the next FY estimate.
-float epsFY_fwd = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE", "FY+1")
 
 float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
 float revFY     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
@@ -425,11 +422,11 @@ float fwdGrowthAvg = fwdGrowthCount > 0 ? fwdGrowthSum / fwdGrowthCount : na
 // Falls back to fwdGrowthAvg only when EPS CAGR is unavailable.
 float epsGrowthRate = epsValid and not na(epsCAGR) ? epsCAGR : (not na(fwdGrowthAvg) ? fwdGrowthAvg : na)
 
-// Forward EPS: prefer analyst consensus FY+1 estimate (Finviz-compatible — actual analyst estimate,
-// not a projection from historical data). Fall back to projecting from TTM/FY EPS if unavailable.
-// This is the single most important step to match Finviz's Forward P/E.
-bool  useAnalystFwd = not na(epsFY_fwd) and epsFY_fwd > 0
-float fwdEPS = useAnalystFwd ? epsFY_fwd : (not na(epsFY) and epsFY > 0 and not na(epsGrowthRate) ? epsFY * (1.0 + epsGrowthRate / 100.0) : na)
+// Forward EPS: project one year ahead using EPS CAGR.
+// Note: TradingView's request.financial() only accepts "FY", "FQ", "TTM", "FH" — no forward
+// period codes exist, so analyst consensus estimates are not available via this API.
+// We use historical EPS CAGR as the best available proxy for projected forward EPS.
+float fwdEPS = not na(epsFY) and epsFY > 0 and not na(epsGrowthRate) ? epsFY * (1.0 + epsGrowthRate / 100.0) : na
 float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
 
 // PEG (Forward) = Forward PE / EPS growth rate (%)
@@ -867,9 +864,7 @@ if barstate.islast
     row += 1
 
     color fwdPEColor = not na(fwdPE) ? (fwdPE > 30 ? color.red : (fwdPE > 15 ? color.orange : color.green)) : color.gray
-    // "est" = analyst FY+1 consensus (Finviz-equivalent); "proj" = projected from TTM × (1+CAGR)
-    string fwdEpsTag    = useAnalystFwd ? "est" : "proj"
-    string epsGrowthStr = not na(epsGrowthRate) ? " (" + fwdEpsTag + ",g=" + str.tostring(epsGrowthRate, "#.#") + "%)" : ""
+    string epsGrowthStr = not na(epsGrowthRate) ? " (proj,g=" + str.tostring(epsGrowthRate, "#.#") + "%)" : ""
     table.cell(masterTable, 0, row, "FWD P/E", text_color=color.white)
     table.cell(masterTable, 1, row, not na(fwdPE) ? str.tostring(fwdPE, "#.#") + "x" + epsGrowthStr : "N/A", bgcolor=fwdPEColor, text_color=color.white, text_size=size.small)
     row += 1
