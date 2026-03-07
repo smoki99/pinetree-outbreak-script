@@ -434,8 +434,8 @@ float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
 // Note: Finviz uses analyst 5-yr consensus; we use historical EPS CAGR as proxy.
 float pegRatio  = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate != 0 ? fwdPE / epsGrowthRate : na
 
-// PERG = Forward PE / (EPS growth% * |Beta|)  [risk-adjusted PEG]
-float pergRatio = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate != 0 and not na(betaVsURTH) and betaVsURTH != 0 ? fwdPE / (epsGrowthRate * math.abs(betaVsURTH)) : na
+// PERG = PEG * |Beta|  [risk-adjusted PEG: higher beta increases the score]
+float pergRatio = not na(pegRatio) and not na(betaVsURTH) ? pegRatio * math.abs(betaVsURTH) : na
 
 // ============================================================================
 // SECTOR ROTATION & TECHNICAL CALCULATIONS
@@ -875,5 +875,5 @@ if barstate.islast
     row += 1
 
     color pergColor = not na(pergRatio) ? (pergRatio > 2.0 ? color.red : (pergRatio > 1.0 ? color.orange : color.green)) : color.gray
-    table.cell(masterTable, 0, row, "PERG (P/E÷(G×β))", text_color=color.white)
+    table.cell(masterTable, 0, row, "PERG (PEG×β)", text_color=color.white)
     table.cell(masterTable, 1, row, not na(pergRatio) ? str.tostring(pergRatio, "#.##") : "N/A", bgcolor=pergColor, text_color=color.white)
