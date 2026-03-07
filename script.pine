@@ -390,6 +390,43 @@ float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
 
 // ============================================================================
+// BETA vs URTH & FORWARD PEG / PERG
+// ============================================================================
+// Beta: rolling 252-bar regression of daily returns vs compSymbol (URTH)
+int   betaLookback = 252
+float stockRet     = close > 0 and close[1] > 0 ? close / close[1] - 1.0 : na
+float benchRet     = compClose > 0 and compClose[1] > 0 ? compClose / compClose[1] - 1.0 : na
+
+float betaCorr     = ta.correlation(stockRet, benchRet, betaLookback)
+float betaStdX     = ta.stdev(stockRet, betaLookback)
+float betaStdY     = ta.stdev(benchRet, betaLookback)
+float betaVsURTH   = not na(betaCorr) and not na(betaStdY) and betaStdY > 0 ? betaCorr * betaStdX / betaStdY : na
+
+// Averaged forward growth: average of all available historical CAGRs (used as forward proxy)
+float fwdGrowthSum   = 0.0
+int   fwdGrowthCount = 0
+if epsValid and not na(epsCAGR)
+    fwdGrowthSum   += epsCAGR
+    fwdGrowthCount += 1
+if not isBank and fcfValid and not na(fcfCAGR)
+    fwdGrowthSum   += fcfCAGR
+    fwdGrowthCount += 1
+if revValid and not na(revCAGR)
+    fwdGrowthSum   += revCAGR
+    fwdGrowthCount += 1
+float fwdGrowthAvg = fwdGrowthCount > 0 ? fwdGrowthSum / fwdGrowthCount : na
+
+// Forward EPS and Forward PE
+float fwdEPS = not na(epsFY) and epsFY > 0 and not na(fwdGrowthAvg) ? epsFY * (1.0 + fwdGrowthAvg / 100.0) : na
+float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
+
+// PEG (Forward) = Forward PE / Averaged Forward Growth (%)
+float pegRatio  = not na(fwdPE) and not na(fwdGrowthAvg) and fwdGrowthAvg > 0 ? fwdPE / fwdGrowthAvg : na
+
+// PERG = Forward PE / (Growth% * Beta)  [risk-adjusted PEG; uses |beta| to support counter-cyclical stocks]
+float pergRatio = not na(fwdPE) and not na(fwdGrowthAvg) and fwdGrowthAvg > 0 and not na(betaVsURTH) and betaVsURTH != 0 ? fwdPE / (fwdGrowthAvg * math.abs(betaVsURTH)) : na
+
+// ============================================================================
 // SECTOR ROTATION & TECHNICAL CALCULATIONS
 // ============================================================================
 scorePhases(float techP, float finP, float healthP, float energyP, float staplesP, float utilP) =>
@@ -633,7 +670,7 @@ plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=locati
 // ============================================================================
 // DASHBOARD
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 32, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 36, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -808,3 +845,24 @@ if barstate.islast
     color rrColor = not na(rrRatio) and rrRatio >= 2 ? color.green : (not na(rrRatio) and rrRatio >= 1 ? color.orange : color.red)
     table.cell(masterTable, 1, row, rrText, bgcolor=rrColor, text_color=color.white)
     row += 1
+
+    // --- BETA / FWD P/E / PEG / PERG ---
+    color betaColor = not na(betaVsURTH) ? (betaVsURTH > 1.5 ? color.red : (betaVsURTH > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "BETA vs " + compSymbol, text_color=color.white)
+    table.cell(masterTable, 1, row, not na(betaVsURTH) ? str.tostring(betaVsURTH, "#.##") : "N/A", bgcolor=betaColor, text_color=color.white)
+    row += 1
+
+    color fwdPEColor = not na(fwdPE) ? (fwdPE > 30 ? color.red : (fwdPE > 15 ? color.orange : color.green)) : color.gray
+    string fwdGrowthStr = not na(fwdGrowthAvg) ? " (g=" + str.tostring(fwdGrowthAvg, "#.#") + "%)" : ""
+    table.cell(masterTable, 0, row, "FWD P/E", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(fwdPE) ? str.tostring(fwdPE, "#.#") + "x" + fwdGrowthStr : "N/A", bgcolor=fwdPEColor, text_color=color.white, text_size=size.small)
+    row += 1
+
+    color pegColor = not na(pegRatio) ? (pegRatio > 2.0 ? color.red : (pegRatio > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "PEG (FWD)", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(pegRatio) ? str.tostring(pegRatio, "#.##") : "N/A", bgcolor=pegColor, text_color=color.white)
+    row += 1
+
+    color pergColor = not na(pergRatio) ? (pergRatio > 2.0 ? color.red : (pergRatio > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "PERG (P/E÷(G×β))", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(pergRatio) ? str.tostring(pergRatio, "#.##") : "N/A", bgcolor=pergColor, text_color=color.white)
