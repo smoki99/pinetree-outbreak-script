@@ -1,5 +1,5 @@
 //@version=6
-indicator("Palantir Strategy: Ultimate Master Guard V15", overlay=true, max_labels_count=500)
+indicator("Master Guard V15", overlay=true, max_labels_count=500)
 
 // ============================================================================
 // INPUTS
@@ -32,6 +32,8 @@ bool isUtility = stockSector == "Utilities" or stockSector == "Utility"
 
 // ============================================================================
 // DATA REQUESTS (Global Scope)
+// NOTE: Pine Script v6 allows up to 40 security calls.
+// Current usage: ~26/40 (after removing revFQ)
 // ============================================================================
 
 // --- Core financial data ---
@@ -51,7 +53,6 @@ float epsFY     = not na(epsTTM) ? epsTTM : epsFY_req
 float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
 float revFY     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
 float revTTM    = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "TTM")
-float revFQ     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ")
 
 // --- BANK UPGRADE: Total Equity for Book Value ---
 float equityFQ  = request.financial(syminfo.tickerid, "TOTAL_EQUITY", "FQ")
@@ -66,7 +67,7 @@ float niFY1  = niFY[1]
 [revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revFY, revFY[1], revFY[2], revFY[3], revFY[4]])
 [niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niFY, niFY[1]])
 [eqY0_y, eqY1_y, eqY2_y, eqY3_y, eqY4_y]      = request.security(syminfo.tickerid, "12M", [equityFY, equityFY[1], equityFY[2], equityFY[3], equityFY[4]])
-[epsY0_y, epsY1_y, epsY2_y, epsY3_y, epsY4_y] = request.security(syminfo.tickerid, "12M", [epsFY, epsFY_req[1], epsFY_req[2], epsFY_req[3], epsFY_req[4]])
+[epsY0_y, epsY1_y, epsY2_y, epsY3_y, epsY4_y] = request.security(syminfo.tickerid, "12M", [epsFY_req, epsFY_req[1], epsFY_req[2], epsFY_req[3], epsFY_req[4]])
 
 // --- Official Shares Outstanding Fetch & Fallbacks ---
 float sharesTV      = request.financial(syminfo.tickerid, "TOTAL_SHARES_OUTSTANDING", "FQ")
@@ -95,8 +96,8 @@ float utilClose    = request.security("AMEX:XLU", timeframe.period, close)
 // VALUATION MODEL SELECTION
 // ============================================================================
 float fcfQuarterlyAnnualized = not na(fcfQuarterly) ? fcfQuarterly * 4.0 : na
-bool isValuationShock = false // Simplified for V15 to rely on model switching
-bool isAutoLumpy = syminfo.ticker == "ASML" or syminfo.ticker == "BA"
+string lumpyTickers = input.string("ASML,BA", "Auto-Lumpy Tickers (comma-separated)", tooltip="Tickers with lumpy/infrequent cash flows where QTRx4 annualization is unreliable.")
+bool isAutoLumpy = str.contains("," + str.replace_all(lumpyTickers, " ", "") + ",", "," + syminfo.ticker + ",")
 
 bool fcfRunRateHigher = useQuarterlyFCF and not isLumpy and not isAutoLumpy and not na(fcfQuarterlyAnnualized) and not na(fcfAnnual) and fcfAnnual > 0 and fcfQuarterlyAnnualized > fcfAnnual * 1.75
 bool fcfRunRateUsed = fcfRunRateHigher
@@ -246,8 +247,8 @@ float currentPE    = not na(epsPS0) and epsPS0 > 0 ? close / epsPS0 : na
 float currentPS    = not na(revPS0) and revPS0 > 0 ? close / revPS0 : na
 
 // Active Metric Selection
-float activeMetric = 0.0
-float activeMultiple = 0.0
+float activeMetric = na
+float activeMultiple = na
 string activeMetricName = ""
 
 if valuationModel == "BOOK"
@@ -270,7 +271,7 @@ else
 // ============================================================================
 // WARNINGS LOGIC
 // ============================================================================
-bool warnNegativeMetric = activeMetric <= 0
+bool warnNegativeMetric = na(activeMetric) or activeMetric <= 0
 bool warnDeterioration = false
 float valWarnThreshold = 0.0
 
