@@ -432,7 +432,9 @@ float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
 // PEG (Forward) = Forward PE / EPS growth rate (%)
 // Matches Finviz methodology: PEG = ForwardP/E ÷ EPS_growth%.
 // Note: Finviz uses analyst 5-yr consensus; we use historical EPS CAGR as proxy.
-float pegRatio  = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate != 0 ? fwdPE / epsGrowthRate : na
+// Guard requires epsGrowthRate > 0: PEG is not meaningful when earnings are declining
+// (negative epsGrowthRate would produce a misleading negative PEG value).
+float pegRatio  = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate > 0 ? fwdPE / epsGrowthRate : na
 
 // PERG = PEG * |Beta|  [risk-adjusted PEG: higher beta increases the score]
 float pergRatio = not na(pegRatio) and not na(betaVsURTH) ? pegRatio * math.abs(betaVsURTH) : na
