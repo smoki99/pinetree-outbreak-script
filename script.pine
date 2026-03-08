@@ -1,5 +1,5 @@
 //@version=6
-indicator("Palantir Strategy: Ultimate Master Guard V15", overlay=true, max_labels_count=500)
+indicator("Master Guard V15", overlay=true, max_labels_count=500)
 
 // ============================================================================
 // INPUTS
@@ -32,6 +32,8 @@ bool isUtility = stockSector == "Utilities" or stockSector == "Utility"
 
 // ============================================================================
 // DATA REQUESTS (Global Scope)
+// NOTE: Pine Script v6 allows up to 40 security calls.
+// Current usage: ~26/40
 // ============================================================================
 
 // --- Core financial data ---
@@ -51,7 +53,6 @@ float epsFY     = not na(epsTTM) ? epsTTM : epsFY_req
 float totalDebt = request.financial(syminfo.tickerid, "TOTAL_DEBT", "FQ")
 float revFY     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FY")
 float revTTM    = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "TTM")
-float revFQ     = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ")
 
 // --- BANK UPGRADE: Total Equity for Book Value ---
 float equityFQ  = request.financial(syminfo.tickerid, "TOTAL_EQUITY", "FQ")
@@ -66,7 +67,7 @@ float niFY1  = niFY[1]
 [revY0_y, revY1_y, revY2_y, revY3_y, revY4_y] = request.security(syminfo.tickerid, "12M", [revFY, revFY[1], revFY[2], revFY[3], revFY[4]])
 [niY0_y, niY1_y]                                = request.security(syminfo.tickerid, "12M", [niFY, niFY[1]])
 [eqY0_y, eqY1_y, eqY2_y, eqY3_y, eqY4_y]      = request.security(syminfo.tickerid, "12M", [equityFY, equityFY[1], equityFY[2], equityFY[3], equityFY[4]])
-[epsY0_y, epsY1_y, epsY2_y, epsY3_y, epsY4_y] = request.security(syminfo.tickerid, "12M", [epsFY, epsFY_req[1], epsFY_req[2], epsFY_req[3], epsFY_req[4]])
+[epsY0_y, epsY1_y, epsY2_y, epsY3_y, epsY4_y] = request.security(syminfo.tickerid, "12M", [epsFY_req, epsFY_req[1], epsFY_req[2], epsFY_req[3], epsFY_req[4]])
 
 // --- Official Shares Outstanding Fetch & Fallbacks ---
 float sharesTV      = request.financial(syminfo.tickerid, "TOTAL_SHARES_OUTSTANDING", "FQ")
@@ -95,8 +96,8 @@ float utilClose    = request.security("AMEX:XLU", timeframe.period, close)
 // VALUATION MODEL SELECTION
 // ============================================================================
 float fcfQuarterlyAnnualized = not na(fcfQuarterly) ? fcfQuarterly * 4.0 : na
-bool isValuationShock = false // Simplified for V15 to rely on model switching
-bool isAutoLumpy = syminfo.ticker == "ASML" or syminfo.ticker == "BA"
+string lumpyTickers = input.string("ASML,BA", "Auto-Lumpy Tickers (comma-separated)", tooltip="Tickers with lumpy/infrequent cash flows where QTRx4 annualization is unreliable.")
+bool isAutoLumpy = str.contains("," + str.replace_all(lumpyTickers, " ", "") + ",", "," + syminfo.ticker + ",")
 
 bool fcfRunRateHigher = useQuarterlyFCF and not isLumpy and not isAutoLumpy and not na(fcfQuarterlyAnnualized) and not na(fcfAnnual) and fcfAnnual > 0 and fcfQuarterlyAnnualized > fcfAnnual * 1.75
 bool fcfRunRateUsed = fcfRunRateHigher
@@ -246,8 +247,8 @@ float currentPE    = not na(epsPS0) and epsPS0 > 0 ? close / epsPS0 : na
 float currentPS    = not na(revPS0) and revPS0 > 0 ? close / revPS0 : na
 
 // Active Metric Selection
-float activeMetric = 0.0
-float activeMultiple = 0.0
+float activeMetric = na
+float activeMultiple = na
 string activeMetricName = ""
 
 if valuationModel == "BOOK"
@@ -270,7 +271,7 @@ else
 // ============================================================================
 // WARNINGS LOGIC
 // ============================================================================
-bool warnNegativeMetric = activeMetric <= 0
+bool warnNegativeMetric = na(activeMetric) or activeMetric <= 0
 bool warnDeterioration = false
 float valWarnThreshold = 0.0
 
@@ -387,6 +388,56 @@ float priceBull = forecastValid ? metricPerShareFwd * forecastMultiple * 1.30 : 
 float upsideBear = forecastValid and close > 0 ? ((priceBear / close) - 1) * 100 : na
 float upsideFair = forecastValid and close > 0 ? ((priceFair / close) - 1) * 100 : na
 float upsideBull = forecastValid and close > 0 ? ((priceBull / close) - 1) * 100 : na
+
+// ============================================================================
+// BETA vs URTH & FORWARD PEG / PERG
+// ============================================================================
+// Beta: rolling 252-bar regression of daily returns vs compSymbol (URTH)
+int   betaLookback = 252
+float stockRet     = close > 0 and close[1] > 0 ? close / close[1] - 1.0 : na
+float benchRet     = compClose > 0 and compClose[1] > 0 ? compClose / compClose[1] - 1.0 : na
+
+float betaCorr     = ta.correlation(stockRet, benchRet, betaLookback)
+float betaStdX     = ta.stdev(stockRet, betaLookback)
+float betaStdY     = ta.stdev(benchRet, betaLookback)
+float betaVsURTH   = not na(betaCorr) and not na(betaStdY) and betaStdY > 0 ? betaCorr * betaStdX / betaStdY : na
+
+// EPS growth rate (historical CAGR, used as best available forward proxy).
+// PEG standard definition: P/E ÷ EPS-growth — NOT averaged with FCF or Revenue growth.
+// fwdGrowthAvg keeps the multi-metric average for display context only (shown in FWD P/E cell).
+float fwdGrowthSum   = 0.0
+int   fwdGrowthCount = 0
+if epsValid and not na(epsCAGR)
+    fwdGrowthSum   += epsCAGR
+    fwdGrowthCount += 1
+if not isBank and fcfValid and not na(fcfCAGR)
+    fwdGrowthSum   += fcfCAGR
+    fwdGrowthCount += 1
+if revValid and not na(revCAGR)
+    fwdGrowthSum   += revCAGR
+    fwdGrowthCount += 1
+float fwdGrowthAvg = fwdGrowthCount > 0 ? fwdGrowthSum / fwdGrowthCount : na
+
+// EPS-only growth rate (in %, e.g. 35.0 for 35%) – the correct divisor for PEG.
+// Falls back to fwdGrowthAvg only when EPS CAGR is unavailable.
+float epsGrowthRate = epsValid and not na(epsCAGR) ? epsCAGR : (not na(fwdGrowthAvg) ? fwdGrowthAvg : na)
+
+// Forward EPS: project one year ahead using EPS CAGR.
+// Note: TradingView's request.financial() only accepts "FY", "FQ", "TTM", "FH" — no forward
+// period codes exist, so analyst consensus estimates are not available via this API.
+// We use historical EPS CAGR as the best available proxy for projected forward EPS.
+float fwdEPS = not na(epsFY) and epsFY > 0 and not na(epsGrowthRate) ? epsFY * (1.0 + epsGrowthRate / 100.0) : na
+float fwdPE  = not na(fwdEPS) and fwdEPS > 0 ? close / fwdEPS : na
+
+// PEG (Forward) = Forward PE / EPS growth rate (%)
+// Matches Finviz methodology: PEG = ForwardP/E ÷ EPS_growth%.
+// Note: Finviz uses analyst 5-yr consensus; we use historical EPS CAGR as proxy.
+// Guard requires epsGrowthRate > 0: PEG is not meaningful when earnings are declining
+// (negative epsGrowthRate would produce a misleading negative PEG value).
+float pegRatio  = not na(fwdPE) and not na(epsGrowthRate) and epsGrowthRate > 0 ? fwdPE / epsGrowthRate : na
+
+// PERG = PEG * |Beta|  [risk-adjusted PEG: higher beta increases the score]
+float pergRatio = not na(pegRatio) and not na(betaVsURTH) ? pegRatio * math.abs(betaVsURTH) : na
 
 // ============================================================================
 // SECTOR ROTATION & TECHNICAL CALCULATIONS
@@ -632,7 +683,7 @@ plotshape(warningSignal, title="WARNING", style=shape.labeldown, location=locati
 // ============================================================================
 // DASHBOARD
 // ============================================================================
-var table masterTable = table.new(position.top_right, 2, 32, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
+var table masterTable = table.new(position.top_right, 2, 36, bgcolor=color.new(color.black, 70), border_width=1, border_color=color.gray)
 
 if barstate.islast
     color wColor  = warnProb > 70 ? color.red : (warnProb > 40 ? color.orange : color.green)
@@ -807,3 +858,24 @@ if barstate.islast
     color rrColor = not na(rrRatio) and rrRatio >= 2 ? color.green : (not na(rrRatio) and rrRatio >= 1 ? color.orange : color.red)
     table.cell(masterTable, 1, row, rrText, bgcolor=rrColor, text_color=color.white)
     row += 1
+
+    // --- BETA / FWD P/E / PEG / PERG ---
+    color betaColor = not na(betaVsURTH) ? (betaVsURTH > 1.5 ? color.red : (betaVsURTH > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "BETA vs " + compSymbol, text_color=color.white)
+    table.cell(masterTable, 1, row, not na(betaVsURTH) ? str.tostring(betaVsURTH, "#.##") : "N/A", bgcolor=betaColor, text_color=color.white)
+    row += 1
+
+    color fwdPEColor = not na(fwdPE) ? (fwdPE > 30 ? color.red : (fwdPE > 15 ? color.orange : color.green)) : color.gray
+    string epsGrowthStr = not na(epsGrowthRate) ? " (proj,g=" + str.tostring(epsGrowthRate, "#.#") + "%)" : ""
+    table.cell(masterTable, 0, row, "FWD P/E", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(fwdPE) ? str.tostring(fwdPE, "#.#") + "x" + epsGrowthStr : "N/A", bgcolor=fwdPEColor, text_color=color.white, text_size=size.small)
+    row += 1
+
+    color pegColor = not na(pegRatio) ? (pegRatio > 2.0 ? color.red : (pegRatio > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "PEG (FWD,EPS " + epsPeriod + ")", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(pegRatio) ? str.tostring(pegRatio, "#.##") : "N/A", bgcolor=pegColor, text_color=color.white)
+    row += 1
+
+    color pergColor = not na(pergRatio) ? (pergRatio > 2.0 ? color.red : (pergRatio > 1.0 ? color.orange : color.green)) : color.gray
+    table.cell(masterTable, 0, row, "PERG (PEG×β)", text_color=color.white)
+    table.cell(masterTable, 1, row, not na(pergRatio) ? str.tostring(pergRatio, "#.##") : "N/A", bgcolor=pergColor, text_color=color.white)
